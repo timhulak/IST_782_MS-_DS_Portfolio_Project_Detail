@@ -1,0 +1,459 @@
+---
+title: "IST 707 Project Intro, EDA, and starting algorithms"
+author:
+- Elissa Carroll
+- Dylan Fajardo
+- Tim Hulak
+- Jason Tompkins
+date: "5/16/2021"
+output: html_document
+---
+
+```{r}
+# Import Libraries
+library(ggplot2)
+library(dplyr)
+library(arules)
+library(arulesViz)
+```
+
+-----
+
+## Introduction
+
+On December 31 2019, the first cases of what would become known as the Novel Coronavirus (COVID-19) were reported in Wuhan China. Initially reported as a viral pneumonia, by January 9th, 2020 it was classified as being a new type of coronavirus. Within the month of January, cases were already being reported in North America; by February 2020, community spread was occurring and by March 2020, all 50 of the US states had community spread. To date, this virus has infected 163 million people and caused 3.37 million deaths worldwide. In the US, there have been 32.9 million recorded infections and 585,000 deaths. The effects of this global pandemic have been felt in every country of the world. With the rapid global spread of the virus, shortages of supplies to treat patients as well as facility shortages were inevitable. 
+
+As communities have become more accustomed to coping with the virus, health care professionals and crisis management teams are able to review the approaches taken to combat the virus. One area that has garnered attention is health care management. Health care management is the overall management of a health care facility (clinic or hospital); it is how a facility ensures it runs smoothly. In light of the pandemic, it is no wonder that facilities were overwhelmed with an inundation of patients but could there have been better responses in the management systems of the clinics? The goal of these types of inquiries is not (necessarily) to shame any one place but to ask if there is a better solution, a better system to have in place.
+
+One area requiring a deeper look within health care management that came to light in the pandemic was patient length of stay (LOS). LOS is an important parameter to consider when trying to optimize hospital efficiency for many obvious reasons. Increased LOS can lead to a host of issues including the increased likelihood to develop hospital-related infections and the disruption of patient flow and access to care as bed availability is no longer predictable <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5360868/#:~:text=INTRODUCTION,care%20due%20to%20bed%20shortages.>. With so many possible parameters effecting patient LOS, it would be very difficult and time consuming (if not impossible) to decide on our own which parameters have the greatest effect. 
+
+Machine learning (ML) is a branch of artificial intelligence (AI) that automates analytical model building. It is based on the idea that systems can learn from data to identify patterns and ultimately make decisions. ML is widely used in health care analytics for tasks such as disease identification and diagnosis to sharing patient information. We will utilize ML to analyze predictive factors in determining patient LOS.
+
+For this analysis, we are utilizing a data set found on Kaggle (<https://www.kaggle.com/vetrirah/av-healthcare2?select=train.csv>) which looks at various parameters effecting LOS. The goal is to accurately predict a patient' LOS at the time of their admission in order to lower patient/visitor exposure to hospital-realted diseases as well as to aid in logistics such as bed availability and resource allocation.
+
+-----
+
+## Analysis and Models
+
+----
+
+
+### About the Data 
+
+The data set contains 318,438 observations of 18 variables related to a case ID.
+
+  + **case_id** : Case_ID registered in Hospital.
+  + **Hospital_code** : Unique code for the Hospital (*Values*: 1 - 32)
+  + **Hospital_type_code** : Unique code for the type of Hospital (*Values*: a, b, c, d, e, f, or g)
+  + **City_Code_Hospital** : City Code of the Hospital (*Values*: 1 - 13)
+  + **Hospital_region_code** : Region Code of the Hospital (*Values*: X, Y, or Z)
+  + **Available.Extra.Rooms.in.Hospital** : Number of Extra rooms available in the Hospital (*Values*: 0 - 24)
+  + **Department** : Department overlooking the case Ward_Type (*Values*: "radiotherapy", "anesthesia", "gynecology", "TB & Chest disease", or "surgery")
+  + **Ward_Type** : Code for the Ward type (*Values*: P, Q, R, S, T, or U)
+  + **Ward_Facility_Code** : Code for the Ward Facility (*Values*: A, B, C, D, E, or F)
+  + **Bed.Grade** : Condition of Bed in the Ward (*Values*: 1, 2, 3, 4, or NA)
+  + **patientid**: Unique Patient Id.
+  + **City_Code_Patient** : City Code for the patient (*Values*: 1 - 38)
+  + **Type.of.Admission** : Admission Type registered by the Hospital (*Values*: "Emergency", "Trauma", or "Urgent")
+  + **Severity.of.Illness** : Severity of the illness recorded at the time of admission (*Values*: "Extreme", "Moderate", or "Minor")
+  + **Visitors.with.Patient** : Number of Visitors with the patient (0 - 32)
+  + **Age** : Age of the patient (*Values*: 0-10, 11-20, 21-30, 31-40, 41-50, 51-60, 61-70, 71-80, 81-90, or 91-100)
+  + **Admission_Deposit** : Deposit at the Admission Time (*Values*: $1800 - $11,008)
+  + **Stay**: Stay Days by the patient (*Values*: 0-10, 11-20, 21-30, 31-40, 41-50, 51-60, 61-70, 71-80, 81-90, 91-100, or More than 100 Days)
+
+
+A preview of the data
+```{r}
+data <- read.csv("train.csv")
+head(data)
+```
+
+The structure of the data reveals that the data was read in as all character and integer variables. 
+```{r}
+str(data)
+```
+
+What attributes have incomplete information?
+```{r}
+data %>%
+  select(everything()) %>%  # replace to your needs
+  summarise_all(funs(sum(is.na(.)))) #The . says to take the output of the last step.
+```
+We see that only two variables have missing values in them. 
+
+  * Bed.Grade: 113 NA's
+  * City_Code_Patient: 4532 NA's
+
+Before doing any EDA or dealing with NA's and attribute data types, we decided as a team to reduce the number of attributes we were analyzing. This was to reduce the complexity of the data as well as due to logic decisions about which ones would be useful.
+
+### Choosing Variables
+
+As we consider which attributes to utilize, it is important to recall from the introduction that the purpose of this analysis is to determine factors effecting the **length of patient stay (LOS)**. While not each of the attributes that we keep has to have an explicit thought relationship to this, if it is clear that there would most likely not be a relationship, we should remove the variables to reduce noise in our data.
+
+The **case_id** and **patientid** were removed from the dataset due to their being unique and nonessential information. The **City_Code_Patient** column was also removed due to having 4532 NA values and not being essential to the analysis. The **Hospital_code**, **City_Code_Hospital**, and **Ward_Facility_Code** were removed as these were all codes that either had representation in other variables (i.e. Ward_Type vs. Ward_Facility_Code) or were given by the city and were not relevant to the question at hand. We also chose to remove **Visitors.with.Patient** at this point in time though we may re-visit it later.
+
+```{r}
+data <- subset(data, select = -c(case_id,Hospital_code,patientid,City_Code_Patient,City_Code_Hospital,Ward_Facility_Code,City_Code_Patient,Visitors.with.Patient))
+```
+
+This left us with 11 variables; 10 of which are our predictor variables and our target variable, patient LOS.
+
+
+### Data Cleaning
+
+Once the variables of interest were chosen, we then addressed NA's as well as data types.
+
+Starting with data types: 
+```{r}
+str(data)
+```
+  * Hospital_type_code, Hospital_region_code, Department, Ward_Type, Type.of.Admission, & Severity.of.Illness should be nominal data.
+  * Bed.Grade should be ordinal data.
+
+```{r}
+data$Hospital_type_code <- factor(data$Hospital_type_code)
+data$Hospital_region_code <- factor(data$Hospital_region_code)
+data$Department <- factor(data$Department)
+data$Ward_Type <- factor(data$Ward_Type)
+data$Type.of.Admission <- factor(data$Type.of.Admission)
+data$Severity.of.Illness <- factor(data$Severity.of.Illness)
+
+data$Bed.Grade <- ordered(data$Bed.Grade)
+
+str(data)
+```
+
+We also discussed the **Stay** attribute's current bins as it is the variable we are trying to predict. We decided that the 11 pre-defined bins in the attribute were possibly too many. 
+
+The values in the column represented a group of days that the patient stayed in the hospital (0-10, 11-20, 21-30, 31-40, 41-50, 51-60, 61-70, 71-80, 81-90, 91-100, or More than 100 Days) and it may be easier to see patterns if there are fewer bins. Therefore, we reduced the number of bins from 11 to 6 ("0-20", "21-40", "41-60", "61-80", "81-100", "More than 100 Days" ).
+
+```{r}
+# data$Stay[data$Stay == "0-10"] <- "0-20"
+# data$Stay[data$Stay == "11-20"] <- "0-20"
+# data$Stay[data$Stay == "21-30"] <- "21-40"
+# data$Stay[data$Stay == "31-40"] <- "21-40"
+# data$Stay[data$Stay == "41-50"] <- "41-60"
+# data$Stay[data$Stay == "51-60"] <- "41-60"
+# data$Stay[data$Stay == "61-70"] <- "61-80"
+# data$Stay[data$Stay == "71-80"] <- "61-80"
+# data$Stay[data$Stay == "81-90"] <- "81-100"
+# data$Stay[data$Stay == "91-100"] <- "81-100"
+
+```
+
+Next we dealt with any remaining NA's.
+
+For the **Bed.Grade** column, we replaced NA's by the mode of the column, since it was such a small portion of the data. 
+```{r}
+getmode <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+# Replace the NA values in the Bed.Grade column with the mode
+data$Bed.Grade[is.na(data$Bed.Grade)]<- getmode(data$Bed.Grade)
+
+#Verify that there are no NA's left in the df:
+
+length(which(is.na(data)))
+```
+
+After data cleaning, we then moved into attribute visualization. 
+
+### Attribute Visualization
+
+**Hospital Type Code**
+```{r}
+Hospital_type_code_freq <- as.data.frame(table(data$Hospital_type_code))
+colnames(Hospital_type_code_freq) <- c("Hospital_type_code","Freq")
+
+ggplot(Hospital_type_code_freq, aes(x = Hospital_type_code, y = Freq)) + geom_bar(stat = "identity") + ggtitle("Hospital Type Code")
+
+```
+
+**Hospital Region Code**
+```{r}
+Hospital_region_code_freq <- as.data.frame(table(data$Hospital_region_code))
+colnames(Hospital_region_code_freq) <- c("Hospital_region_code","Freq")
+
+# Compute the position of labels
+Hospital_region_code_freq <- Hospital_region_code_freq %>% 
+  arrange(desc(Hospital_region_code)) %>%
+  mutate(prop = Freq / sum(Hospital_region_code_freq$Freq) *100) %>%
+  mutate(ypos = cumsum(prop)- 0.5*prop )
+
+# Basic piechart
+ggplot(Hospital_region_code_freq, aes(x="", y=prop, fill=Hospital_region_code)) + geom_bar(stat="identity", width=1, color="white") + coord_polar("y", start=0) + theme_void() + theme(legend.position="none") + geom_text(aes(y = ypos, label = Hospital_region_code), color = "black", size=6) + scale_fill_brewer(palette="Set1") + ggtitle("Hospital Region Code")
+```
+
+**Available Extra Rooms in Hospital**
+```{r}
+ggplot(data, aes(x=Available.Extra.Rooms.in.Hospital)) + geom_histogram(binwidth=1) + ggtitle("Extra Hospital Rooms")
+```
+
+**Department**
+```{r}
+Department_freq <- as.data.frame(table(data$Department))
+colnames(Department_freq) <- c("Department","Freq")
+
+ggplot(Department_freq, aes(x = Department, y = Freq)) + geom_bar(stat = "identity") + ggtitle("Department")
+```
+
+**Ward Type**
+```{r}
+Ward_Type_freq <- as.data.frame(table(data$Ward_Type))
+colnames(Ward_Type_freq) <- c("Ward_Type","Freq")
+
+ggplot(Ward_Type_freq, aes(x = Ward_Type, y = Freq)) + geom_bar(stat = "identity") + ggtitle("Ward_Type")
+```
+
+**Bed Grade**
+```{r}
+Bed_Grade_freq <- as.data.frame(table(data$Bed.Grade))
+colnames(Bed_Grade_freq) <- c("Bed_Grade", "Freq")
+
+ggplot(Bed_Grade_freq, aes(x=Bed_Grade, y= Freq)) + geom_bar(stat = "identity") + ggtitle("Bed_Grade")
+```
+
+**Type of Admission**
+```{r}
+Type.of.Admission_freq <- as.data.frame(table(data$Type.of.Admission))
+colnames(Type.of.Admission_freq) <- c("Type.of.Admission","Freq")
+
+# Compute the position of labels
+Type.of.Admission_freq <- Type.of.Admission_freq %>% 
+  arrange(desc(Type.of.Admission)) %>%
+  mutate(prop = Freq / sum(Type.of.Admission_freq$Freq) *100) %>%
+  mutate(ypos = cumsum(prop)- 0.5*prop )
+
+# Basic piechart
+ggplot(Type.of.Admission_freq, aes(x="", y=prop, fill=Type.of.Admission)) + geom_bar(stat="identity", width=1, color="white") + coord_polar("y", start=0) + theme_void() + theme(legend.position="none") + geom_text(aes(y = ypos, label = Type.of.Admission), color = "black", size=6) + scale_fill_brewer(palette="Set1") + ggtitle("Type of Admission")
+```
+
+**Severity of Illness**
+```{r}
+Severity.of.Illness_freq <- as.data.frame(table(data$Severity.of.Illness))
+colnames(Severity.of.Illness_freq) <- c("Severity.of.Illness","Freq")
+
+# Compute the position of labels
+Severity.of.Illness_freq <- Severity.of.Illness_freq %>% 
+  arrange(desc(Severity.of.Illness)) %>%
+  mutate(prop = Freq / sum(Severity.of.Illness_freq$Freq) *100) %>%
+  mutate(ypos = cumsum(prop)- 0.5*prop )
+
+# Basic piechart
+ggplot(Severity.of.Illness_freq, aes(x="", y=prop, fill=Severity.of.Illness)) + geom_bar(stat="identity", width=1, color="white") + coord_polar("y", start=0) + theme_void() + theme(legend.position="none") + geom_text(aes(y = ypos, label = Severity.of.Illness), color = "black", size=6) + scale_fill_brewer(palette="Set1") + ggtitle("Severity of Illness")
+```
+
+**Age**
+```{r}
+Age_freq <- as.data.frame(table(data$Age))
+colnames(Age_freq) <- c("Age","Freq")
+
+ggplot(Age_freq, aes(x = Age, y = Freq)) + geom_bar(stat = "identity") + ggtitle("Patient Age")
+```
+
+**Admission Deposit**
+```{r}
+ggplot(data, aes(x=Admission_Deposit)) + geom_histogram(binwidth=500) + ggtitle("Admission Deposit")
+```
+
+**Stay**
+```{r}
+Stay_freq <- as.data.frame(table(data$Stay))
+colnames(Stay_freq) <- c("Stay","Freq")
+
+ggplot(Stay_freq, aes(x = Stay, y = Freq)) + geom_bar(stat = "identity") + ggtitle("Patient Stay")
+```
+  **We will discuss as a group whether we want to keep these bins for LOS. Reasons to consider changing them is that there are so few occurrences in the 61+ Day bins. We may find more meaning if we split the larger bins up.**
+
+
+## Unsupervised Models
+
+After doing some exploratory data analysis, we start utilizing algorithms to pick out any patterns that may naturally occurr in the data. 
+
+The first appraoch we take is to utilize a technique called Associaiton Rule Mining (ARM). ARM utilizes the Apriori algorithm to determine if features occur together; i.e., are they co-related. This algorithm determines frequently occurring items and item sets. We can utilize this to determine if there are any conditions (age or department etc) which happen frequently with any given LOS. This is important to think of rules generated with "if" -> "then". If a patient has these attributes, then they had increased/decreased LOS.
+
+Metrics for determining the strength of the ARM outputs are *support*, *confidence*, and *lift*. Support measures how much historical data supports the rule. Confidence tells us how confident we are that the rules will hold true. Lift measures the ratio of confidence to support; when <1 then the right hand side (RHS) and left hand side (LHS) of the rule are negatively correlated, >1 means positively correlated, and = 1 is not correlated.
+
+We start by transforming any of our numeric attributes into discrete attributes.
+
+```{r}
+ARM_PreProcess_Data <- data
+
+ARM_PreProcess_Data <- subset(ARM_PreProcess_Data, select =  -c(Hospital_type_code,Hospital_region_code,Ward_Type,Available.Extra.Rooms.in.Hospital,Bed.Grade,Admission_Deposit))
+
+#ARM_PreProcess_Data$Hospital_type_code <- as.factor(ARM_PreProcess_Data$Hospital_type_code)
+#ARM_PreProcess_Data$Hospital_region_code <- as.factor(ARM_PreProcess_Data$Hospital_region_code)
+ARM_PreProcess_Data$Department <- as.factor(ARM_PreProcess_Data$Department)
+#ARM_PreProcess_Data$Ward_Type <- as.factor(ARM_PreProcess_Data$Ward_Type)
+ARM_PreProcess_Data$Type.of.Admission <- as.factor(ARM_PreProcess_Data$Type.of.Admission)
+ARM_PreProcess_Data$Severity.of.Illness <- as.factor(ARM_PreProcess_Data$Severity.of.Illness)
+ARM_PreProcess_Data$Age <- as.factor(ARM_PreProcess_Data$Age)
+ARM_PreProcess_Data$Stay <- as.factor(ARM_PreProcess_Data$Stay)
+#ARM_PreProcess_Data$Bed.Grade <- as.factor(ARM_PreProcess_Data$Bed.Grade)
+#ARM_PreProcess_Data$Available.Extra.Rooms.in.Hospital <- as.factor(ARM_PreProcess_Data$Available.Extra.Rooms.in.Hospital)
+
+# Discretize  Admission Deposit
+#ARM_PreProcess_Data$Admission_Deposit <- cut(ARM_PreProcess_Data$Admission_Deposit, breaks = c(0,1000,2000,3000,4000,5000,6000,7000,8000,9000,10000,11000,12000,Inf), labels = c("Less Than 1k","1k-2k","2k-3k","3k-4k","4k-5k","5k-6k","6k-7k","7k-8k","8k-9k","9k-10k","10k-11k","11k-12k","Greater Than 12k"))
+
+head(ARM_PreProcess_Data)
+```
+
+
+
+Next, we are able to transform our data into being transaction data.
+```{r}
+#Get data into transaction format
+ARM_Data <- as(ARM_PreProcess_Data, "transactions")
+
+ARM_Data
+```
+
+
+To start, visualize an item frequency plot to see which terms are the most frequent. 
+```{r}
+itemFrequencyPlot(ARM_Data, topN=20, type = "absolute")
+```
+
+Now that the data is in the correct form for ARM, we look at rules associated with at least an 80% confidence level and varying levels of support. We also establish a minimum length for the rules of 3.
+
+```{r}
+rules <- apriori(ARM_Data, parameter = list(supp = 0.06, conf = 0.8, maxlen = 3))
+
+rules <- sort(rules, by=c("confidence","support"), decreasing=TRUE)
+
+options(digits=2)
+inspect(rules)
+```
+
+
+---
+
+
+# Stay=0-10
+```{r}
+rules <- apriori(data = ARM_Data, parameter = list(supp = 0.015, conf = 0.07, minlen = 3), appearance = list(default = "lhs", rhs = "Stay=0-10"),control = list(verbose = F))
+
+rules <- sort(rules, by=c("confidence","support"), decreasing=TRUE)
+
+options(digits=2)
+inspect(rules)
+
+```
+
+# Stay=11-20
+```{r}
+rules <- apriori(data = ARM_Data, parameter = list(supp = 0.015, conf = 0.3, minlen = 3), appearance = list(default = "lhs", rhs = "Stay=11-20"),control = list(verbose = F))
+
+rules <- sort(rules, by=c("confidence","support"), decreasing=TRUE)
+
+options(digits=2)
+inspect(rules)
+
+```
+
+# Stay=21-30
+```{r}
+rules <- apriori(data = ARM_Data, parameter = list(supp = 0.015,conf = 0.32, minlen = 3), appearance = list(default = "lhs", rhs = "Stay=21-30"),control = list(verbose = F))
+
+rules <- sort(rules, by=c("confidence","support"), decreasing=TRUE)
+
+options(digits=2)
+inspect(rules)
+
+```
+# Stay=31-40
+```{r}
+rules <- apriori(data = ARM_Data, parameter = list(supp = 0.015, conf = 0.18, minlen = 3), appearance = list(default = "lhs", rhs = "Stay=31-40"),control = list(verbose = F))
+
+rules <- sort(rules, by=c("confidence","support"), decreasing=TRUE)
+
+options(digits=2)
+inspect(rules)
+
+```
+
+# Stay=41-50
+```{r}
+rules <- apriori(data = ARM_Data, parameter = list(supp = 0.01, conf = 0.03, minlen = 3), appearance = list(default = "lhs", rhs = "Stay=41-50"),control = list(verbose = F))
+
+rules <- sort(rules, by=c("confidence","support"), decreasing=TRUE)
+
+options(digits=2)
+inspect(rules)
+
+```
+
+# Stay=51-60
+```{r}
+rules <- apriori(data = ARM_Data, parameter = list(supp = 0.02,conf = 0.01, minlen = 3), appearance = list(default = "lhs", rhs = "Stay=51-60"),control = list(verbose = F))
+
+rules <- sort(rules, by=c("confidence","support"), decreasing=TRUE)
+
+options(digits=2)
+inspect(rules)
+
+```
+
+# Stay=61-70
+```{r}
+rules <- apriori(data = ARM_Data, parameter = list(supp = 0.0015, conf = 0.009, minlen = 3), appearance = list(default = "lhs", rhs = "Stay=61-70"),control = list(verbose = F))
+
+rules <- sort(rules, by=c("confidence","support"), decreasing=TRUE)
+
+options(digits=2)
+inspect(rules)
+
+```
+
+# Stay=71-80
+```{r}
+rules <- apriori(data = ARM_Data, parameter = list(supp = 0.003, conf = 0.04, minlen = 3), appearance = list(default = "lhs", rhs = "Stay=71-80"),control = list(verbose = F))
+
+rules <- sort(rules, by=c("confidence","support"), decreasing=TRUE)
+
+options(digits=2)
+inspect(rules)
+
+```
+
+# Stay=81-90
+```{r}
+rules <- apriori(data = ARM_Data, parameter = list(supp = 0.003, conf = 0.01, minlen = 3), appearance = list(default = "lhs", rhs = "Stay=81-90"),control = list(verbose = F))
+
+rules <- sort(rules, by=c("confidence","support"), decreasing=TRUE)
+
+options(digits=2)
+inspect(rules)
+
+```
+
+# Stay=91-100
+```{r}
+rules <- apriori(data = ARM_Data, parameter = list(supp = 0.002, conf = 0.008, minlen = 3), appearance = list(default = "lhs", rhs = "Stay=91-100"),control = list(verbose = F))
+
+rules <- sort(rules, by=c("confidence","support"), decreasing=TRUE)
+
+options(digits=2)
+inspect(rules)
+
+```
+
+# Stay=More than 100 Days
+```{r}
+rules <- apriori(data = ARM_Data, parameter = list(supp = 0.0015, conf = 0.03, minlen = 3), appearance = list(default = "lhs", rhs = "Stay=More than 100 Days"),control = list(verbose = F))
+
+rules <- sort(rules, by=c("confidence","support"), decreasing=TRUE)
+
+options(digits=2)
+inspect(rules)
+
+```
+
+
+
+
+
+
+

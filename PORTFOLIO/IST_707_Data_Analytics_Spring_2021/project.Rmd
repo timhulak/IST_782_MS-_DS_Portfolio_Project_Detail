@@ -1,0 +1,349 @@
+---
+title: "Healthcare Analytics"
+author:
+- Elissa Carroll
+- Dylan Fajardo
+- Tim Hulak
+- Jason Tompkins
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  html_notebook: default
+---
+
+```{r}
+# Import Libraries
+library(ggplot2)
+library(dplyr)
+library(arules)
+library(arulesViz)
+library(caret)
+```
+
+-----
+
+# Introduction
+
+-----
+
+
+
+----
+
+# Analysis and Models
+
+----
+
+
+### About the Data: 
+
+The data set contains 318,438 observations of 18 variables related to a case ID.
+
+  + **case_id** : Case_ID registered in Hospital.
+  + **Hospital_code** : Unique code for the Hospital (*Values*: 1 - 32)
+  + **Hospital_type_code** : Unique code for the type of Hospital (*Values*: a, b, c, d, e, f, or g)
+  + **City_Code_Hospital** : City Code of the Hospital (*Values*: 1 - 13)
+  + **Hospital_region_code** : Region Code of the Hospital (*Values*: X, Y, or Z)
+  + **Available.Extra.Rooms.in.Hospital** : Number of Extra rooms available in the Hospital (*Values*: 0 - 24)
+  + **Department** : Department overlooking the case Ward_Type (*Values*: "radiotherapy", "anesthesia", "gynecology", "TB & Chest disease", or "surgery")
+  + **Ward_Type** : Code for the Ward type (*Values*: P, Q, R, S, T, or U)
+  + **Ward_Facility_Code** : Code for the Ward Facility (*Values*: A, B, C, D, E, or F)
+  + **Bed.Grade** : Condition of Bed in the Ward (*Values*: 1, 2, 3, 4, or NA)
+  + **patientid**: Unique Patient Id.
+  + **City_Code_Patient** : City Code for the patient (*Values*: 1 - 38)
+  + **Type.of.Admission** : Admission Type registered by the Hospital (*Values*: "Emergency", "Trauma", or "Urgent")
+  + **Severity.of.Illness** : Severity of the illness recorded at the time of admission (*Values*: "Extreme", "Moderate", or "Minor")
+  + **Visitors.with.Patient** : Number of Visitors with the patient (0 - 32)
+  + **Age** : Age of the patient (*Values*: 0-10, 11-20, 21-30, 31-40, 41-50, 51-60, 61-70, 71-80, 81-90, or 91-100)
+  + **Admission_Deposit** : Deposit at the Admission Time (*Values*: $1800 - $11,008)
+  + **Stay**: Stay Days by the patient (*Values*: 0-10, 11-20, 21-30, 31-40, 41-50, 51-60, 61-70, 71-80, 81-90, 91-100, or More than 100 Days)
+
+
+
+The dataset can be found at this link: https://www.kaggle.com/vetrirah/av-healthcare2?select=train.csv 
+
+
+A preview of the data
+```{r}
+data <- read.csv("train.csv")
+head(data)
+```
+
+The structure of the data reveals that the data is made up of character and integer variables. 
+```{r}
+str(data)
+```
+
+There appears to be 148 NA values in the Bed.Grade column and 6689 NA values in the City_Code_Patient column. 
+```{r}
+for (col in 1:ncol(data)) {
+  print(paste(colnames(data)[col],":",sum(is.na(data[ , col]))))
+}
+```
+
+
+
+```{r}
+Hospital_code_freq <- as.data.frame(table(data$Hospital_code))
+colnames(Hospital_code_freq) <- c("Hospital_code","Freq")
+
+ggplot(Hospital_code_freq, aes(x = Hospital_code, y = Freq)) + geom_bar(stat = "identity") + ggtitle("Hospital Code")
+
+```
+
+```{r}
+Hospital_type_code_freq <- as.data.frame(table(data$Hospital_type_code))
+colnames(Hospital_type_code_freq) <- c("Hospital_type_code","Freq")
+
+ggplot(Hospital_type_code_freq, aes(x = Hospital_type_code, y = Freq)) + geom_bar(stat = "identity") + ggtitle("Hospital Type Code")
+
+```
+
+
+```{r}
+City_Code_Hospital_freq <- as.data.frame(table(data$City_Code_Hospital))
+colnames(City_Code_Hospital_freq) <- c("City_Code_Hospital","Freq")
+
+ggplot(City_Code_Hospital_freq, aes(x = City_Code_Hospital, y = Freq)) + geom_bar(stat = "identity") + ggtitle("Hospital City Code")
+```
+
+```{r}
+Hospital_region_code_freq <- as.data.frame(table(data$Hospital_region_code))
+colnames(Hospital_region_code_freq) <- c("Hospital_region_code","Freq")
+
+# Compute the position of labels
+Hospital_region_code_freq <- Hospital_region_code_freq %>% 
+  arrange(desc(Hospital_region_code)) %>%
+  mutate(prop = Freq / sum(Hospital_region_code_freq$Freq) *100) %>%
+  mutate(ypos = cumsum(prop)- 0.5*prop )
+
+# Basic piechart
+ggplot(Hospital_region_code_freq, aes(x="", y=prop, fill=Hospital_region_code)) + geom_bar(stat="identity", width=1, color="white") + coord_polar("y", start=0) + theme_void() + theme(legend.position="none") + geom_text(aes(y = ypos, label = Hospital_region_code), color = "black", size=6) + scale_fill_brewer(palette="Set1") + ggtitle("Hospital Region Code")
+```
+
+```{r}
+ggplot(data, aes(x=Available.Extra.Rooms.in.Hospital)) + geom_histogram(binwidth=1) + ggtitle("Extra Hospital Rooms")
+```
+```{r}
+Department_freq <- as.data.frame(table(data$Department))
+colnames(Department_freq) <- c("Department","Freq")
+
+ggplot(Department_freq, aes(x = Department, y = Freq)) + geom_bar(stat = "identity") + ggtitle("Department")
+```
+
+```{r}
+Ward_Type_freq <- as.data.frame(table(data$Ward_Type))
+colnames(Ward_Type_freq) <- c("Ward_Type","Freq")
+
+ggplot(Ward_Type_freq, aes(x = Ward_Type, y = Freq)) + geom_bar(stat = "identity") + ggtitle("Ward_Type")
+```
+
+```{r}
+Ward_Facility_Code_freq <- as.data.frame(table(data$Ward_Facility_Code))
+colnames(Ward_Facility_Code_freq) <- c("Ward_Facility_Code","Freq")
+
+ggplot(Ward_Facility_Code_freq, aes(x = Ward_Facility_Code, y = Freq)) + geom_bar(stat = "identity") + ggtitle("Ward Facility Code")
+```
+
+
+```{r}
+Type.of.Admission_freq <- as.data.frame(table(data$Type.of.Admission))
+colnames(Type.of.Admission_freq) <- c("Type.of.Admission","Freq")
+
+# Compute the position of labels
+Type.of.Admission_freq <- Type.of.Admission_freq %>% 
+  arrange(desc(Type.of.Admission)) %>%
+  mutate(prop = Freq / sum(Type.of.Admission_freq$Freq) *100) %>%
+  mutate(ypos = cumsum(prop)- 0.5*prop )
+
+# Basic piechart
+ggplot(Type.of.Admission_freq, aes(x="", y=prop, fill=Type.of.Admission)) + geom_bar(stat="identity", width=1, color="white") + coord_polar("y", start=0) + theme_void() + theme(legend.position="none") + geom_text(aes(y = ypos, label = Type.of.Admission), color = "black", size=6) + scale_fill_brewer(palette="Set1") + ggtitle("Type of Admission")
+```
+
+```{r}
+Severity.of.Illness_freq <- as.data.frame(table(data$Severity.of.Illness))
+colnames(Severity.of.Illness_freq) <- c("Severity.of.Illness","Freq")
+
+# Compute the position of labels
+Severity.of.Illness_freq <- Severity.of.Illness_freq %>% 
+  arrange(desc(Severity.of.Illness)) %>%
+  mutate(prop = Freq / sum(Severity.of.Illness_freq$Freq) *100) %>%
+  mutate(ypos = cumsum(prop)- 0.5*prop )
+
+# Basic piechart
+ggplot(Severity.of.Illness_freq, aes(x="", y=prop, fill=Severity.of.Illness)) + geom_bar(stat="identity", width=1, color="white") + coord_polar("y", start=0) + theme_void() + theme(legend.position="none") + geom_text(aes(y = ypos, label = Severity.of.Illness), color = "black", size=6) + scale_fill_brewer(palette="Set1") + ggtitle("Severity of Illness")
+```
+
+```{r}
+ggplot(data, aes(x=Visitors.with.Patient)) + geom_histogram(binwidth=1) + ggtitle("Visitors with Patient")
+```
+
+```{r}
+Age_freq <- as.data.frame(table(data$Age))
+colnames(Age_freq) <- c("Age","Freq")
+
+ggplot(Age_freq, aes(x = Age, y = Freq)) + geom_bar(stat = "identity") + ggtitle("Patient Age")
+```
+
+```{r}
+ggplot(data, aes(x=Admission_Deposit)) + geom_histogram(binwidth=500) + ggtitle("Admission Deposit")
+```
+```{r}
+Stay_freq <- as.data.frame(table(data$Stay))
+colnames(Stay_freq) <- c("Stay","Freq")
+
+ggplot(Stay_freq, aes(x = Stay, y = Freq)) + geom_bar(stat = "identity") + ggtitle("Patient Stay")
+```
+
+## Data Cleaning
+
+
+The **case_id** and **patientid** were removed from the dataset due to their being unique and nonessential information. The **City_Code_Patient** column was also removed due to having 4532 NA values and not being essential to the analysis. The 113 NA values in the **Bed.Grade** column were replaced by the mode of the column, since it was such a small portion of the data. Upon further discussion, there seemed to be several columns that would not be useful for the purpose of the analysis. In total, the team removed the **case_id**, **Hospital_code**, **patientid**, **City_Code_Patient**, **City_Code_Hospital**, **Ward_Facility_Code**, **City_Code_Patient**, and **Visitors.with.Patient**. 
+```{r}
+# Remove the case_id, patientid, City_Code_Patient columns
+data <- subset(data, select = -c(case_id,Hospital_code,patientid,City_Code_Patient,City_Code_Hospital,Ward_Facility_Code,City_Code_Patient,Visitors.with.Patient))
+
+
+# Create function to determine the mode
+getmode <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+# Replace the NA values in the Bed.Grade column with the mode
+data$Bed.Grade[is.na(data$Bed.Grade)]<- getmode(data$Bed.Grade)
+
+
+
+```
+
+There were 11 pre-defined bins in the attribute **Stay**, which is potentially too many. The values in the column represented a group of days that the patient stayed in the hospital (0-10, 11-20, 21-30, 31-40, 41-50, 51-60, 61-70, 71-80, 81-90, 91-100, or More than 100 Days). It may be easier to see patterns if there are fewer bins. Therefore, the team reduced the number of bins from 11 to 6 ("0-20", "21-40", "41-60", "61-80", "81-100", "More than 100 Days" )
+```{r}
+data$Stay[data$Stay == "0-10"] <- "0-20"
+data$Stay[data$Stay == "11-20"] <- "0-20"
+data$Stay[data$Stay == "21-30"] <- "21-40"
+data$Stay[data$Stay == "31-40"] <- "21-40"
+data$Stay[data$Stay == "41-50"] <- "41-60"
+data$Stay[data$Stay == "51-60"] <- "41-60"
+data$Stay[data$Stay == "61-70"] <- "61-80"
+data$Stay[data$Stay == "71-80"] <- "61-80"
+data$Stay[data$Stay == "81-90"] <- "81-100"
+data$Stay[data$Stay == "91-100"] <- "81-100"
+
+```
+The EDA visualization was also redone for this attribute. 
+```{r}
+Stay_freq <- as.data.frame(table(data$Stay))
+colnames(Stay_freq) <- c("Stay","Freq")
+
+ggplot(Stay_freq, aes(x = Stay, y = Freq)) + geom_bar(stat = "identity") + ggtitle("Patient Stay (re-binned)")
+```
+
+
+Finally, the character columns were converted into factors. 
+
+```{r}
+ARM_PreProcess_Data <- data
+
+ARM_PreProcess_Data <- subset(ARM_PreProcess_Data, select =  -c(Hospital_type_code,Hospital_region_code,Ward_Type,Available.Extra.Rooms.in.Hospital,Bed.Grade))
+
+#ARM_PreProcess_Data$Hospital_type_code <- as.factor(ARM_PreProcess_Data$Hospital_type_code)
+#ARM_PreProcess_Data$Hospital_region_code <- as.factor(ARM_PreProcess_Data$Hospital_region_code)
+ARM_PreProcess_Data$Department <- as.factor(ARM_PreProcess_Data$Department)
+#ARM_PreProcess_Data$Ward_Type <- as.factor(ARM_PreProcess_Data$Ward_Type)
+ARM_PreProcess_Data$Type.of.Admission <- as.factor(ARM_PreProcess_Data$Type.of.Admission)
+ARM_PreProcess_Data$Severity.of.Illness <- as.factor(ARM_PreProcess_Data$Severity.of.Illness)
+ARM_PreProcess_Data$Age <- as.factor(ARM_PreProcess_Data$Age)
+ARM_PreProcess_Data$Stay <- as.factor(ARM_PreProcess_Data$Stay)
+#ARM_PreProcess_Data$Bed.Grade <- as.factor(ARM_PreProcess_Data$Bed.Grade)
+#ARM_PreProcess_Data$Available.Extra.Rooms.in.Hospital <- as.factor(ARM_PreProcess_Data$Available.Extra.Rooms.in.Hospital)
+
+# Discretize  Admission Deposit
+ARM_PreProcess_Data$Admission_Deposit <- cut(ARM_PreProcess_Data$Admission_Deposit, breaks = c(0,1000,2000,3000,4000,5000,6000,7000,8000,9000,10000,11000,12000,Inf), labels = c("Less Than 1k","1k-2k","2k-3k","3k-4k","4k-5k","5k-6k","6k-7k","7k-8k","8k-9k","9k-10k","10k-11k","11k-12k","Greater Thann 12k"))
+
+head(ARM_PreProcess_Data)
+```
+
+```{r}
+unique(ARM_PreProcess_Data$Department)
+```
+
+
+
+```{r}
+ARM_Data <- as(ARM_PreProcess_Data, "transactions")
+
+ARM_Data
+```
+
+
+```{r}
+rules <- apriori(ARM_Data, parameter = list(supp = 0.06, conf = 0.8, maxlen = 3))
+
+rules <- sort(rules, by=c("confidence","support"), decreasing=TRUE)
+
+options(digits=2)
+inspect(rules)
+```
+
+```{r}
+rules <- apriori(data = ARM_Data, parameter = list(supp=0.06,conf = 0.8, minlen=3), appearance = list(default = "lhs", rhs = "Department=gynecology"),control = list(verbose = F))
+
+rules <- sort(rules, by=c("confidence","support"), decreasing=TRUE)
+
+options(digits=2)
+inspect(rules)
+
+```
+
+```{r}
+rules <- apriori(data = ARM_Data, parameter = list(supp=0.01,conf = 0.1, minlen=3), appearance = list(default = "lhs", rhs = "Department=anesthesia"),control = list(verbose = F))
+
+rules <- sort(rules, by=c("confidence","support"), decreasing=TRUE)
+
+options(digits=2)
+inspect(rules)
+
+```
+
+```{r}
+rules <- apriori(data = ARM_Data, parameter = list(supp=0.01,conf = 0.1, minlen=3), appearance = list(default = "lhs", rhs = "Department=radiotherapy"),control = list(verbose = F))
+
+rules <- sort(rules, by=c("confidence","support"), decreasing=TRUE)
+
+options(digits=2)
+inspect(rules)
+```
+```{r}
+rules <- apriori(data = ARM_Data, parameter = list(supp=0.001,conf = 0.03, minlen=3), appearance = list(default = "lhs", rhs = "Department=TB & Chest disease"),control = list(verbose = F))
+
+rules <- sort(rules, by=c("confidence","support"), decreasing=TRUE)
+
+options(digits=2)
+inspect(rules)
+```
+
+```{r}
+rules <- apriori(data = ARM_Data, parameter = list(supp=0.001,conf = 0.009, minlen=3), appearance = list(default = "lhs", rhs = "Department=surgery"),control = list(verbose = F))
+
+rules <- sort(rules, by=c("confidence","support"), decreasing=TRUE)
+
+options(digits=2)
+inspect(rules)
+```
+
+
+-----
+
+# Results
+
+-----
+
+
+
+-----
+
+# Conclusion
+
+-----

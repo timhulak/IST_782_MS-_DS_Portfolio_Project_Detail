@@ -1,0 +1,1347 @@
+---
+title: "IST 707 Project Intro, EDA, and starting algorithms"
+author:
+- Elissa Carroll
+- Dylan Fajardo
+- Tim Hulak
+- Jason Tompkins
+date: "5/16/2021"
+output: html_document
+---
+
+```{r}
+# Import Libraries
+library(ggplot2)
+library(ggpubr)
+library(tidyverse)
+library(dplyr)
+library(arules)
+library(arulesViz)
+library(rpart)
+library(rpart.plot)
+library(caret)
+library(rattle)
+library(RColorBrewer)
+library(cluster)
+library(janitor)
+library(magrittr)
+library(psych)
+library(rio)
+library(BiocManager)
+library(car)
+library(e1071)
+#library(MASS)
+library(Rtsne)
+```
+
+-----
+
+## **Introduction**
+
+On December 31 2019, the first cases of what would become known as the Novel Coronavirus (COVID-19) were reported in Wuhan China. Initially reported as a viral pneumonia, by January 9th, 2020 it was classified as being a new type of coronavirus. Within the month of January, cases were already being reported in North America; by February 2020, community spread was occurring and by March 2020, all 50 of the US states had community spread. To date, this virus has infected 163 million people and caused 3.37 million deaths worldwide. In the US, there have been 32.9 million recorded infections and 585,000 deaths. The effects of this global pandemic have been felt in every country of the world. With the rapid global spread of the virus, shortages of supplies to treat patients as well as facility shortages were inevitable. 
+
+As communities have become more accustomed to coping with the virus, health care professionals and crisis management teams are able to review the approaches taken to combat the virus. One area that has garnered attention is health care management. Health care management is the overall management of a health care facility (clinic or hospital); it is how a facility ensures it runs smoothly. In light of the pandemic, it is no wonder that facilities were overwhelmed with an inundation of patients but could there have been better responses in the management systems of the clinics? The goal of these types of inquiries is not (necessarily) to shame any one place but to ask if there is a better solution, a better system to have in place.
+
+One area requiring a deeper look within health care management that came to light in the pandemic was patient length of stay (LOS). LOS is an important parameter to consider when trying to optimize hospital efficiency and when trying to provide the best health outcome for patients. Increased LOS can lead to a host of issues including the increased likelihood to develop hospital-related infections and the disruption of patient flow and access to care as bed availability is no longer predictable <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5360868/#:~:text=INTRODUCTION,care%20due%20to%20bed%20shortages.>. With so many possible parameters effecting patient LOS, it would be very difficult and time consuming (if not impossible) to predict by hand which parameters have the greatest effect. 
+
+Machine learning (ML) is a branch of artificial intelligence (AI) that automates analytic model building. It is based on the idea that systems can learn from data to identify patterns and ultimately make decisions. ML is widely used in health care analytics for tasks such as disease identification and diagnosis to sharing patient information. We will utilize ML to analyze predictive factors in determining patient LOS.
+\newpage
+
+## **Analysis and Models**
+
+### **About the Data** 
+
+For this analysis, we are utilizing a data set found on Kaggle <https://www.kaggle.com/vetrirah/av-healthcare2?select=train.csv> which looks at various parameters effecting patient Length of Stay. The goal is to accurately predict a patient' LOS at the time of their admission in order to lower patient/visitor exposure to hospital-related diseases as well as to aid in logistics such as bed availability and resource allocation.
+
+The data set contains 318,438 observations of 18 variables related to a case ID.
+
+  + **case_id** : Case_ID registered in Hospital.
+  + **Hospital_code** : Unique code for the Hospital (*Values*: 1 - 32)
+  + **Hospital_type_code** : Unique code for the type of Hospital (*Values*: a, b, c, d, e, f, or g)
+  + **City_Code_Hospital** : City Code of the Hospital (*Values*: 1 - 13)
+  + **Hospital_region_code** : Region Code of the Hospital (*Values*: X, Y, or Z)
+  + **Available.Extra.Rooms.in.Hospital** : Number of Extra rooms available in the Hospital (*Values*: 0 - 24)
+  + **Department** : Department overlooking the case Ward_Type (*Values*: "radiotherapy", "anesthesia", "gynecology", "TB & Chest disease", or "surgery")
+  + **Ward_Type** : Code for the Ward type (*Values*: P, Q, R, S, T, or U)
+  + **Ward_Facility_Code** : Code for the Ward Facility (*Values*: A, B, C, D, E, or F)
+  + **Bed.Grade** : Condition of Bed in the Ward (*Values*: 1, 2, 3, 4, or NA)
+  + **patientid**: Unique Patient Id.
+  + **City_Code_Patient** : City Code for the patient (*Values*: 1 - 38)
+  + **Type.of.Admission** : Admission Type registered by the Hospital (*Values*: "Emergency", "Trauma", or "Urgent")
+  + **Severity.of.Illness** : Severity of the illness recorded at the time of admission (*Values*: "Extreme", "Moderate", or "Minor")
+  + **Visitors.with.Patient** : Number of Visitors with the patient (0 - 32)
+  + **Age** : Age of the patient (*Values*: 0-10, 11-20, 21-30, 31-40, 41-50, 51-60, 61-70, 71-80, 81-90, or 91-100)
+  + **Admission_Deposit** : Deposit at the Admission Time (*Values*: $1800 - $11,008)
+  + **Stay**: Stay Days by the patient (*Values*: 0-10, 11-20, 21-30, 31-40, 41-50, 51-60, 61-70, 71-80, 81-90, 91-100, or More than 100 Days)
+
+
+A preview of the data
+```{r}
+dataOrig <- read.csv("train.csv") #In case we need an unedited version of the data
+
+#To work with
+data <- dataOrig
+head(data, 3)
+```
+
+The structure of the data reveals that the data was read in as character, integer, and numeric variables. 
+```{r}
+str(data)
+```
+
+What attributes have incomplete information?
+```{r}
+data %>%
+  select(everything()) %>%  # replace to your needs
+  summarise_all(funs(sum(is.na(.)))) #The . says to take the output of the last step..
+```
+We see that only two variables have missing values in them. 
+
+  * Bed.Grade: 113 NA's
+  * City_Code_Patient: 4532 NA's
+
+Before doing any EDA or dealing with NA's and attribute data types, we decided as a team to reduce the number of attributes we were analyzing. This was to reduce the complexity of the data as well as due to logic decisions about which ones would be useful.
+
+#### **Choosing Variables**
+
+As we consider which attributes to utilize, it is important to recall from the introduction that the purpose of this analysis is to determine factors effecting the **length of patient stay (LOS)**. While not each of the attributes that we keep has to have an explicit thought relationship to this, if it is clear that there would most likely not be a relationship, we should remove the variables to reduce noise in our data.
+
+The **case_id** and **patientid** were removed from the dataset due to their being unique and nonessential information. The **City_Code_Patient** column was also removed due to having 4532 NA values and not being essential to the analysis. The **Hospital_code**, **City_Code_Hospital**, and **Ward_Facility_Code** were removed as these were all codes that either had representation in other variables (i.e. Ward_Type vs. Ward_Facility_Code) or were given by the city and were not relevant to the question at hand. We also chose to remove **Visitors.with.Patient** at this point in time though we may re-visit it later.
+
+```{r}
+data <- subset(data, select = -c(case_id,Hospital_code,patientid,City_Code_Patient,City_Code_Hospital,Ward_Facility_Code,City_Code_Patient,Visitors.with.Patient))
+```
+
+This left us with 11 variables; 10 of which are our predictor variables and our target variable, patient LOS.
+
+#### **Data Cleaning**
+
+Once the variables of interest were chosen, we then addressed NA's as well as data types.
+
+Starting with data types: 
+```{r}
+str(data)
+```
+  * Hospital_type_code, Hospital_region_code, Department, Ward_Type, Type.of.Admission, & Severity.of.Illness should be nominal data.
+  * Bed.Grade should be ordinal data.
+
+```{r}
+data$Hospital_type_code <- factor(data$Hospital_type_code)
+data$Hospital_region_code <- factor(data$Hospital_region_code)
+data$Department <- factor(data$Department)
+data$Ward_Type <- factor(data$Ward_Type)
+data$Type.of.Admission <- factor(data$Type.of.Admission)
+data$Severity.of.Illness <- factor(data$Severity.of.Illness)
+
+data$Bed.Grade <- ordered(data$Bed.Grade)
+
+str(data)
+```
+
+We also discussed the **Stay** attribute's current bins as it is the variable we are trying to predict. We decided that the 11 pre-defined bins in the attribute were possibly too many. 
+
+The values in the column represented a group of days that the patient stayed in the hospital (0-10, 11-20, 21-30, 31-40, 41-50, 51-60, 61-70, 71-80, 81-90, 91-100, or More than 100 Days) and it may be easier to see patterns if there are fewer bins. Therefore, we reduced the number of bins from 11 to 6 ("0-20", "21-40", "41-60", "61-80", "81-100", "More than 100 Days" ).
+
+```{r}
+data$Stay[data$Stay == "0-10"] <- "0-20"
+data$Stay[data$Stay == "11-20"] <- "0-20"
+data$Stay[data$Stay == "21-30"] <- "21-40"
+data$Stay[data$Stay == "31-40"] <- "21-40"
+data$Stay[data$Stay == "41-50"] <- "41-60"
+data$Stay[data$Stay == "51-60"] <- "41-60"
+data$Stay[data$Stay == "61-70"] <- "61-80"
+data$Stay[data$Stay == "71-80"] <- "61-80"
+data$Stay[data$Stay == "81-90"] <- "81-100"
+data$Stay[data$Stay == "91-100"] <- "81-100"
+
+```
+
+Next we dealt with any remaining NA's.
+
+For the **Bed.Grade** column, we replaced NA's by the mode of the column, since it was such a small portion of the data. 
+```{r}
+getmode <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+# Replace the NA values in the Bed.Grade column with the mode
+data$Bed.Grade[is.na(data$Bed.Grade)]<- getmode(data$Bed.Grade)
+
+#Verify that there are no NA's left in the df:
+
+length(which(is.na(data)))
+```
+
+After data cleaning, we then moved into attribute visualization. 
+
+#### **Attribute Visualization**
+
+We will now look at each individual attribute to get a sense of its spread ans center.
+```{r}
+# HOSPITAL TYPE CODE
+Hospital_type_code_freq <- as.data.frame(table(data$Hospital_type_code))
+colnames(Hospital_type_code_freq) <- c("Hospital_type_code","Freq")
+
+HTC <- ggplot(Hospital_type_code_freq, aes(x = Hospital_type_code, y = Freq)) + geom_bar(stat = "identity") + ggtitle("Hospital Type Code")
+
+
+
+# HOSPITAL REGION CODE
+Hospital_region_code_freq <- as.data.frame(table(data$Hospital_region_code))
+colnames(Hospital_region_code_freq) <- c("Hospital_region_code","Freq")
+
+  # Compute the position of labels
+Hospital_region_code_freq <- Hospital_region_code_freq %>% 
+  arrange(desc(Hospital_region_code)) %>%
+  mutate(prop = Freq / sum(Hospital_region_code_freq$Freq) *100) %>%
+  mutate(ypos = cumsum(prop)- 0.5*prop )
+
+  # Basic piechart
+HRC <- ggplot(Hospital_region_code_freq, aes(x="", y=prop, fill=Hospital_region_code)) + geom_bar(stat="identity", width=1, color="white") + coord_polar("y", start=0) + theme_void() + theme(legend.position="none") + geom_text(aes(y = ypos, label = Hospital_region_code), color = "black", size=6) + scale_fill_brewer(palette="Set1") + ggtitle("Hospital Region Code")
+
+
+
+# AVAILABLE EXTRA ROOMS IN HOSPITAL
+ER<- ggplot(data, aes(x=Available.Extra.Rooms.in.Hospital)) + geom_histogram(binwidth=1) + ggtitle("Extra Hospital Rooms")
+
+
+
+# DEPARTMENT
+Department_freq <- as.data.frame(table(data$Department))
+colnames(Department_freq) <- c("Department","Freq")
+
+Dep <- ggplot(Department_freq, aes(x = Department, y = Freq)) + geom_bar(stat = "identity") + ggtitle("Department") + theme(axis.text.x = element_text(angle=45))
+
+
+
+# WARD TYPE
+Ward_Type_freq <- as.data.frame(table(data$Ward_Type))
+colnames(Ward_Type_freq) <- c("Ward_Type","Freq")
+
+WT <- ggplot(Ward_Type_freq, aes(x = Ward_Type, y = Freq)) + geom_bar(stat = "identity") + ggtitle("Ward_Type")
+
+
+
+# BED GRADE
+Bed_Grade_freq <- as.data.frame(table(data$Bed.Grade))
+colnames(Bed_Grade_freq) <- c("Bed_Grade", "Freq")
+
+BG <- ggplot(Bed_Grade_freq, aes(x=Bed_Grade, y= Freq)) + geom_bar(stat = "identity") + ggtitle("Bed_Grade")
+
+
+
+# TYPE OF ADMISSION
+Type.of.Admission_freq <- as.data.frame(table(data$Type.of.Admission))
+colnames(Type.of.Admission_freq) <- c("Type.of.Admission","Freq")
+
+  # Compute the position of labels
+Type.of.Admission_freq <- Type.of.Admission_freq %>% 
+  arrange(desc(Type.of.Admission)) %>%
+  mutate(prop = Freq / sum(Type.of.Admission_freq$Freq) *100) %>%
+  mutate(ypos = cumsum(prop)- 0.5*prop )
+
+  # Basic piechart
+ToA <- ggplot(Type.of.Admission_freq, aes(x="", y=prop, fill=Type.of.Admission)) + geom_bar(stat="identity", width=1, color="white") + coord_polar("y", start=0) + theme_void() + theme(legend.position="none") + geom_text(aes(y = ypos, label = Type.of.Admission), color = "black", size=6) + scale_fill_brewer(palette="Set1") + ggtitle("Type of Admission")
+
+
+
+# SEVERITY OF ILLNESS
+Severity.of.Illness_freq <- as.data.frame(table(data$Severity.of.Illness))
+colnames(Severity.of.Illness_freq) <- c("Severity.of.Illness","Freq")
+
+  # Compute the position of labels
+Severity.of.Illness_freq <- Severity.of.Illness_freq %>% 
+  arrange(desc(Severity.of.Illness)) %>%
+  mutate(prop = Freq / sum(Severity.of.Illness_freq$Freq) *100) %>%
+  mutate(ypos = cumsum(prop)- 0.5*prop )
+
+  # Basic piechart
+SoI <- ggplot(Severity.of.Illness_freq, aes(x="", y=prop, fill=Severity.of.Illness)) + geom_bar(stat="identity", width=1, color="white") + coord_polar("y", start=0) + theme_void() + theme(legend.position="none") + geom_text(aes(y = ypos, label = Severity.of.Illness), color = "black", size=6) + scale_fill_brewer(palette="Set1") + ggtitle("Severity of Illness")
+
+
+
+#AGE
+Age_freq <- as.data.frame(table(data$Age))
+colnames(Age_freq) <- c("Age","Freq")
+
+Age <- ggplot(Age_freq, aes(x = Age, y = Freq)) + geom_bar(stat = "identity") + ggtitle("Patient Age") + theme(axis.text.x = element_text(angle=45))
+
+
+#ADMISSION DEPOSIT
+AD <- ggplot(data, aes(x=Admission_Deposit)) + geom_histogram(binwidth=500) + ggtitle("Admission Deposit")
+
+
+# STAY
+Stay_freq <- as.data.frame(table(data$Stay))
+colnames(Stay_freq) <- c("Stay","Freq")
+
+Stay <- ggplot(Stay_freq, aes(x = Stay, y = Freq)) + geom_bar(stat = "identity") + ggtitle("Patient Stay") + theme(axis.text.x = element_text(angle=45))
+```
+
+
+```{r}
+EDA <- ggarrange(Stay, AD, Age, SoI, ToA, BG, WT, Dep, ER, HRC, HTC, ncol = 2)
+EDA
+```
+
+# **SPACE FOR COMMENTARY ON EDA**
+
+After analyzing the attributes center and spread as well as any relationships with our dependant attribute (LOS), we then moved onto utilizing unsupervised models to determine any relationships between LOS and the other attributes. 
+\newpage
+
+### **Unsupervised Models**
+
+In unsupervised learning approaches, the algorithms are not provided any tag for a target attribute prediction. Instead, it is left to the algorithm to find any underlying structure that exists in the data. This can be beneficial for discovering new patterns that were not visible before. It is generally considered more difficult than utilizing supervised models because there is not necessarily a correct answer and there is no pre-determined output variable.
+
+Unsupervised models can be broken down into two types: parametric and non-parametric. Parametric unsupervised learning assumes a parametric distribution of the data. This means that the population that the sample data comes from follows a probability distribution based a fixed size of parameters; no matter how much data you throw at a parametric model, it won't change it's mind about how many parameters it needs. Non-parametric unsupervised learning does not require any assumptions about the population distribution of the data.  
+
+
+#### **Association Rule Mining**
+
+_Association Rule Mining  (unsupervised) Offer the top 10 rules for the highest sup, the top 10 for conf, and the top 10 for lift. All rules must have at least one element on the left and one on the right. Also choose to set the left as a given value and show the top 10 (based on your dataset and determinations)._
+
+The first approach we take is to utilize a technique called **Association Rule Mining (ARM)**. ARM utilizes the Apriori algorithm to determine if features occur together; i.e., are they co-related. This algorithm determines frequently occurring items and item sets. We can utilize this to determine if there are any conditions (age or department etc) which happen frequently with any given LOS. It will also tell us what items occur together the most frequently independent of our preferred output variable. It is important to think of rules generated as being of the form "if" -> "then". If a patient has these attributes, then they had increased/decreased LOS. Rules are discussed in term of handedness: the "if" is the left-hand side (LHS) while the "then" is the right-hand side. Additionally, to generate item sets, ARM requires the data to be in a transaction format.
+
+Metrics for determining the strength of the item sets are **support**, **confidence**, and **lift**. Support measures how much historical data supports the rule. Confidence tells us how confident we are that the rules will hold true. Lift measures the ratio of confidence to support; when <1 then the RHS & LHS of the rule are negatively correlated, >1 LHS & RHS are positively correlated, and = 1 LHS & RHS are not correlated.
+
+We start by transforming any of our numeric attributes into discrete attributes.
+
+```{r}
+ARM_PreProcess_Data <- data
+
+ARM_PreProcess_Data <- subset(ARM_PreProcess_Data, select =  -c(Hospital_type_code,Hospital_region_code,Ward_Type,Available.Extra.Rooms.in.Hospital,Bed.Grade,Admission_Deposit))
+
+#ARM_PreProcess_Data$Hospital_type_code <- as.factor(ARM_PreProcess_Data$Hospital_type_code)
+#ARM_PreProcess_Data$Hospital_region_code <- as.factor(ARM_PreProcess_Data$Hospital_region_code)
+ARM_PreProcess_Data$Department <- as.factor(ARM_PreProcess_Data$Department)
+#ARM_PreProcess_Data$Ward_Type <- as.factor(ARM_PreProcess_Data$Ward_Type)
+ARM_PreProcess_Data$Type.of.Admission <- as.factor(ARM_PreProcess_Data$Type.of.Admission)
+ARM_PreProcess_Data$Severity.of.Illness <- as.factor(ARM_PreProcess_Data$Severity.of.Illness)
+ARM_PreProcess_Data$Age <- as.factor(ARM_PreProcess_Data$Age)
+ARM_PreProcess_Data$Stay <- as.factor(ARM_PreProcess_Data$Stay)
+#ARM_PreProcess_Data$Bed.Grade <- as.factor(ARM_PreProcess_Data$Bed.Grade)
+#ARM_PreProcess_Data$Available.Extra.Rooms.in.Hospital <- as.factor(ARM_PreProcess_Data$Available.Extra.Rooms.in.Hospital)
+
+# Discretize  Admission Deposit
+#ARM_PreProcess_Data$Admission_Deposit <- cut(ARM_PreProcess_Data$Admission_Deposit, breaks = c(0,1000,2000,3000,4000,5000,6000,7000,8000,9000,10000,11000,12000,Inf), labels = c("Less Than 1k","1k-2k","2k-3k","3k-4k","4k-5k","5k-6k","6k-7k","7k-8k","8k-9k","9k-10k","10k-11k","11k-12k","Greater Than 12k"))
+
+head(ARM_PreProcess_Data, 4)
+```
+
+Next, we transform the data into transaction data.
+```{r}
+#Get data into transaction format
+ARM_Data <- as(ARM_PreProcess_Data, "transactions")
+
+head(ARM_Data)
+```
+
+First, visualize an item frequency plot to see which terms are the most frequent. 
+```{r}
+itemFrequencyPlot(ARM_Data, topN=20, type = "absolute")
+```
+Note that the items with the highest frequency here are what we saw as those values having the greatest representation in our EDA. It would not be terribly surprising if a majority of the rules generated by ARM have these top 20 terms on one or both sides of their equation.
+
+Now that the data is in the correct form for ARM, we look at rules associated with at least 
+
+an **80% confidence level** and varying levels of support. We also establish a minimum length for the rules equal to 3.
+
+```{r}
+rules <- apriori(ARM_Data, parameter = list(supp = 0.06, conf = 0.8, maxlen = 3))
+
+rules <- sort(rules, by=c("confidence","support"), decreasing=TRUE)
+
+options(digits=2)
+inspect(rules[1:10])
+```
+
+
+---
+
+After looking at rules that are organically generated, we then chose to see which rule sets include the varying Length of Stay as the right hand side of their equation.
+
+# Stay=0-10
+```{r}
+rules <- apriori(data = ARM_Data, parameter = list(supp = 0.015, conf = 0.07, minlen = 3), appearance = list(default = "lhs", rhs = "Stay=0-10"),control = list(verbose = F))
+
+rules <- sort(rules, by=c("confidence","support"), decreasing=TRUE)
+
+options(digits=2)
+inspect(rules)
+
+```
+
+# Stay=11-20
+```{r}
+rules <- apriori(data = ARM_Data, parameter = list(supp = 0.015, conf = 0.3, minlen = 3), appearance = list(default = "lhs", rhs = "Stay=11-20"),control = list(verbose = F))
+
+rules <- sort(rules, by=c("confidence","support"), decreasing=TRUE)
+
+options(digits=2)
+inspect(rules)
+
+```
+
+# Stay=21-30
+```{r}
+rules <- apriori(data = ARM_Data, parameter = list(supp = 0.015,conf = 0.32, minlen = 3), appearance = list(default = "lhs", rhs = "Stay=21-30"),control = list(verbose = F))
+
+rules <- sort(rules, by=c("confidence","support"), decreasing=TRUE)
+
+options(digits=2)
+inspect(rules)
+
+```
+# Stay=31-40
+```{r}
+rules <- apriori(data = ARM_Data, parameter = list(supp = 0.015, conf = 0.18, minlen = 3), appearance = list(default = "lhs", rhs = "Stay=31-40"),control = list(verbose = F))
+
+rules <- sort(rules, by=c("confidence","support"), decreasing=TRUE)
+
+options(digits=2)
+inspect(rules)
+
+```
+
+# Stay=41-50
+```{r}
+rules <- apriori(data = ARM_Data, parameter = list(supp = 0.01, conf = 0.03, minlen = 3), appearance = list(default = "lhs", rhs = "Stay=41-50"),control = list(verbose = F))
+
+rules <- sort(rules, by=c("confidence","support"), decreasing=TRUE)
+
+options(digits=2)
+inspect(rules)
+
+```
+
+# Stay=51-60
+```{r}
+rules <- apriori(data = ARM_Data, parameter = list(supp = 0.02,conf = 0.01, minlen = 3), appearance = list(default = "lhs", rhs = "Stay=51-60"),control = list(verbose = F))
+
+rules <- sort(rules, by=c("confidence","support"), decreasing=TRUE)
+
+options(digits=2)
+inspect(rules)
+
+```
+
+# Stay=61-70
+```{r}
+rules <- apriori(data = ARM_Data, parameter = list(supp = 0.0015, conf = 0.009, minlen = 3), appearance = list(default = "lhs", rhs = "Stay=61-70"),control = list(verbose = F))
+
+rules <- sort(rules, by=c("confidence","support"), decreasing=TRUE)
+
+options(digits=2)
+inspect(rules)
+
+```
+
+# Stay=71-80
+```{r}
+rules <- apriori(data = ARM_Data, parameter = list(supp = 0.003, conf = 0.04, minlen = 3), appearance = list(default = "lhs", rhs = "Stay=71-80"),control = list(verbose = F))
+
+rules <- sort(rules, by=c("confidence","support"), decreasing=TRUE)
+
+options(digits=2)
+inspect(rules)
+
+```
+
+# Stay=81-90
+```{r}
+rules <- apriori(data = ARM_Data, parameter = list(supp = 0.003, conf = 0.01, minlen = 3), appearance = list(default = "lhs", rhs = "Stay=81-90"),control = list(verbose = F))
+
+rules <- sort(rules, by=c("confidence","support"), decreasing=TRUE)
+
+options(digits=2)
+inspect(rules)
+
+```
+
+# Stay=91-100
+```{r}
+rules <- apriori(data = ARM_Data, parameter = list(supp = 0.002, conf = 0.008, minlen = 3), appearance = list(default = "lhs", rhs = "Stay=91-100"),control = list(verbose = F))
+
+rules <- sort(rules, by=c("confidence","support"), decreasing=TRUE)
+
+options(digits=2)
+inspect(rules)
+
+```
+
+# Stay=More than 100 Days
+```{r}
+rules <- apriori(data = ARM_Data, parameter = list(supp = 0.0015, conf = 0.03, minlen = 3), appearance = list(default = "lhs", rhs = "Stay=More than 100 Days"),control = list(verbose = F))
+
+rules <- sort(rules, by=c("confidence","support"), decreasing=TRUE)
+
+options(digits=2)
+inspect(rules)
+
+```
+
+# **SPACE FOR BRIEF COMMENTARY ON ARM**
+
+#### **Hierarchical Clustering** 
+
+_Clustering (k means and one other – your choice) (unsupervised) Include visualization. Run k means for three choices for k and choose the best._
+
+Clustering techniques measure the similarity and dissimilarity between objects inside of a data set. The idea is that elements who belong in a group together will be less dissimilar to each other than they are to members of other groups. In other words, you want to maximize inter-group dissimilarity and maximize intra-group similarity. Predominately, measuring dissimilarity is done by measuring the distance between groups of objects to create a dissimilarity matrix. Distance can be measured in different ways and is the basis for the development of different distance-based clustering algorithms. The choice of the distance measure is an essential component of clustering and will impact the shape of the clusters that are generated. 
+
+Two classical measures of distance are Euclidean distance and Manhattan distance. Euclidean distance is the shortest distance between two points in N dimensional space. This can be visualized by thinking of the Pythagorean theorem and imagine calculating the hypotenuse. Manhattan distance is the sum of the distance in each dimension. For this one, think more of classical rise over run on a graph but consider including the z dimension too. There are also correlation based distance measurements but we will not delve into those today. Another measure of distance focuses on similarity instead of dissimilarity; this is cosine similarity. Cosine similarity measures the cosine of the angle between two vectors projected in multi-dimensional space. This is particularly useful because cosine similarity does not take *size* into account. In other words, if you are trying to measure the distance between two vectors and one is much larger than the other, cosine similarity will not be effected by that where as measures such as Euclidean distance would be. 
+
+Clustering steps:
+
+  1) create dissimilarity matrix
+  2) choose the algorithm to use
+  3) Choose number of clusters
+  4) evaluate the clusters.
+
+Data:
+
+  * We are starting by just looking at variables that are directly related to the patient.
+  * Type of Admission, Severity of Illness, Age, Admission Deposit, Stay.
+  
+```{r}
+#Start by taking the variables of interest into a new data frame.
+clust_data <- data %>% select(Stay, Type.of.Admission, Severity.of.Illness, Age, Admission_Deposit)
+
+#Then make the row names into unique, descriptive identifiers for the clustering.
+
+clust_data <- clust_data %>% 
+  mutate(Stay_sh = case_when(
+    endsWith(Stay, "20") ~ "20", 
+    endsWith(Stay, "40") ~ "40",
+    endsWith(Stay, "60") ~ "60",
+    endsWith(Stay, "Days") ~ "100+"
+  ))
+
+rownames(clust_data) <- make.names(clust_data[,6], unique = TRUE)
+```
+  
+  * Utilizing make.names with the unique = TRUE parameter did work but there is an X generated in front of each one.Try with that to start.
+
+
+Can we create dissimilarity matrix for for categorical data? The answer is yes. Specifically, a package called Cluster has an function called Daisy that is able to utilize both numeric, factor, and ordinal data in generating a dissimilarity matrix. The ordinal and factor data dissimilarity is calculated by Gower's distance. 
+
+All data needs to be numeric, factor, or ordinal.
+```{r}
+#Utilize Gower's distance to calculate a dissimilarity matrix. Note that we want to make Stay the row names(similar to how we took out the filenames of the federalist papers and made them the row names.). However, as there are repeated names in the Stay column, we are actually not allowed to make them rownames in R. Instead just select columns 2:5 when calculating the dissimilarity matrix.
+
+clust_data$Age <- ordered(clust_data$Age)
+```
+Memory allocation is an issue when trying to run all 800K records through this algorithm. What is our current memory allocation?
+```{r}
+memory.size(max = FALSE)
+memory.size(max = TRUE)
+```
+
+  * Currently have 348.22 currently in use.
+  * Maximum amount of memory on device is 465.69.
+
+Next try to run the daisy function to generate a dissimilarity matrix on whole data set (+800K records).
+```{r}
+#gower.dist <- daisy(clust_data[ ,2:5], metric = c("gower"))
+```
+The vector generated is too large for our computer to handle. Next, we will take a random sample of our data (try for 100K records) and see if the computer can handle it.
+
+```{r}
+
+clust_samp <- clust_data[sample(nrow(clust_data),100000),]
+
+#gower.dist <- daisy(clust_samp[ ,2:5], metric = c("gower"))
+```
+
+100K records is still too many. Let's try 10,000.
+
+```{r}
+set.seed(856)
+
+clust_samp <- clust_data[sample(nrow(clust_data),20000),]
+
+gower.dist <- daisy(clust_samp[ ,2:5], metric = c("gower"))
+```
+
+We will try both agglomerative and divisive clustering. Agglomerative clustering starts by assuming that each data point is its own cluster then will try finding similar data points and grouping them together to create clusters; this is better for discovering small clusters. With divisive clustering, the algorithm starts with one large cluster and then breaks up the most dissimilar ones into their own groups; this is better for discovering larger clusters.
+
+**Divisive Clustering**
+```{r}
+#divisive.clust <- diana(as.matrix(gower.dist), 
+                 # diss = TRUE, keep.diss = TRUE)
+#plot(divisive.clust, main = "Divisive")
+```
+
+  * Divisive clustering is more memory intensive and caused me to reduce from being able to look at 20,000 samples to 5,000. For now I am only moving forward with agglomerative clustering.
+
+**Agglomerative Clustering**
+```{r}
+#Complete Linkage
+aggl.clust.c <- hclust(gower.dist, method = "complete")
+plot(aggl.clust.c, main = "Agglomerative, complete linkages")
+
+#Single Linkage
+aggl.clust.s <- hclust(gower.dist, method = "single")
+plot(aggl.clust.s, main = "Agglomerative, single linkages")
+
+#Average linkage 
+aggl.clust.a <- hclust(gower.dist, method = "average")
+plot(aggl.clust.a, main = "Agglomerative, average linkages")
+
+#Ward's Method
+aggl.clust.d <- hclust(gower.dist, method = "ward.D")
+plot(aggl.clust.d, main = "Agglomerative, Ward's Method")
+```
+
+**SPACE FOR COMMENTARY ON CLUSTERING**
+
+\newpage
+### **Supervised Models**
+
+#### **Decision Trees**
+
+_Decision Tree (supervised). Include at least three different trees and their visualizations._
+
+A Decision Tree (DT) is a supervised learning algorithm that can be utilized for regression or classification problems. DT's determine which questions are the most efficient at partitioning your data to end up at your class label as a terminal node. Recursive binary splitting is utilized by the algorithm when splitting the tree and splitting decision is based on reducing impurity in each subsequent split. 
+
+```{r}
+# Read in CSV
+DataRaw <- read.csv("train.csv")
+
+
+# Check for missing values
+sum(is.na(DataRaw))
+
+# Create a subset of complete records
+dataComplete <- DataRaw[complete.cases(DataRaw),]
+str(dataComplete)
+
+# Create a subset that excludes the case ID
+myVars = c("Hospital_type_code", "Hospital_region_code", "Available.Extra.Rooms.in.Hospital", "Department", "Ward_Type", "Bed.Grade", "Type.of.Admission", "Severity.of.Illness", "Age", "Admission_Deposit", "Stay")
+DataExplore <- dataComplete[myVars]
+
+# Convert select attributes to nominal variables (aka factor)
+DataExplore$Hospital_type_code <- factor(DataExplore$Hospital_type_code)
+DataExplore$Hospital_region_code <- factor(DataExplore$Hospital_region_code)
+DataExplore$Department <- factor(DataExplore$Department)
+DataExplore$Ward_Type <- factor(DataExplore$Ward_Type)
+DataExplore$Bed.Grade <- factor(DataExplore$Bed.Grade)
+DataExplore$Type.of.Admission <- factor(DataExplore$Type.of.Admission)
+DataExplore$Severity.of.Illness <- factor(DataExplore$Severity.of.Illness)
+DataExplore$Age <- factor(DataExplore$Age)
+DataExplore$Stay <- factor(DataExplore$Stay)
+
+str(DataExplore)
+```
+
+
+
+```{r}
+# Randomly sample elements to go into a training data set
+trainList <-createDataPartition(y=DataExplore$Stay, p=.01,list=FALSE)
+
+trainSet <- DataExplore[trainList,] #included elements in the training set
+testSet <- DataExplore[-trainList,] #construct a test set from the remaining elements
+
+# Set the seed
+set.seed(777)
+
+# Create a random sample for the training and testing data
+trainSample <- sample_n(trainSet,size=1000,replace=FALSE)
+testSample <- sample_n(testSet,size=500,replace=FALSE)
+
+trainSample[1:10,]
+testSample[1:10,]
+```
+
+
+```{r}
+# Training the Decision Tree Classifier
+TREE <- rpart(Stay ~ ., trainSample)
+
+# Visualize the decision tree
+prp(TREE)
+
+# Training data predictions
+tree.stay.trained <- predict(TREE, trainSample, type='class')
+
+# Evaluate the model using a Confusion Matrix
+confusionMatrix(tree.stay.trained, trainSample$Stay)
+
+# Testing data predictions
+tree.stay.tested <- predict(TREE, testSample, type='class')
+
+# Evaluate the model using a Confusion Matrix
+confusionMatrix(tree.stay.tested, testSample$Stay)
+```
+
+
+
+```{r}
+# Training the Decision Tree Classifier
+#TREE2 <- rpart(Stay ~ Type.of.Admission+Severity.of.Illness+Age+Admission_Deposit, trainSample)
+
+TREE2 <- rpart(Stay ~ Type.of.Admission+Severity.of.Illness+Age+Admission_Deposit, trainSample
+               , method = 'class', control = rpart.control(minsplit = 20, minbucket = 6, maxdepth = 4, cp = -1)
+               , model = T)
+
+# Visualize the decision tree
+prp(TREE2)
+rpart.plot(TREE2)
+fancyRpartPlot(TREE2, sub = "Healthcare Data Decision Tree")
+
+# Training data predictions
+tree2.stay.trained <- predict(TREE2, trainSample, type='class')
+
+# Evaluate the model using a Confusion Matrix
+confusionMatrix(tree2.stay.trained, trainSample$Stay)
+
+# Testing data predictions
+tree2.stay.tested <- predict(TREE2, testSample, type='class')
+
+# Evaluate the model using a Confusion Matrix
+confusionMatrix(tree2.stay.tested, testSample$Stay)
+
+```
+
+
+```{r}
+# Training the Decision Tree Classifier
+TREE3 <- rpart(Stay ~ Type.of.Admission+Severity.of.Illness+Age, trainSample
+               , method = 'class', control = rpart.control(minsplit = 20, minbucket = 6, maxdepth = 3, cp = -1)
+               , model = T)
+
+# Visualize the decision tree
+prp(TREE3)
+rpart.plot(TREE3)
+fancyRpartPlot(TREE3)
+
+# Training data predictions
+tree3.stay.trained <- predict(TREE3, trainSample, type='class')
+
+# Evaluate the model using a Confusion Matrix
+confusionMatrix(tree3.stay.trained, trainSample$Stay)
+
+# Testing data predictions
+tree3.stay.tested <- predict(TREE3, testSample, type='class')
+
+# Evaluate the model using a Confusion Matrix
+confusionMatrix(tree3.stay.tested, testSample$Stay)
+```
+
+# **COMMENT ON DECISION TREES**
+
+#### **k-Nearest Neighbors (kNN)**
+
+k-nearest neighbors (kNN) is a classification algorithm that classifies a data instance by determining what data points it is most similar to; in other words, who are its nearest neighbors? The "k" portion of this tells the algorithm how many neighbors you want to compare each new data point to. It is important to note the importance of chosing an odd k-value so as to not run into an instance of a tie(say 5 neighbors are most like A and 5 neighbors are most like B, what class is chosen?). For our model tuning, we will be trying different k values.
+
+```{r Load and Prepare the Data}
+
+# Import the data & save as tibble
+dfRAW <-  import("~/rData/projectTrain.csv") %>%
+  as_tibble()
+
+getwd()
+
+set.seed(777)
+
+# Check for missing values
+dfRAW %>%
+  is.na() %>% 
+  sum()
+
+# Create a subset of complete records
+dfRAW <- dfRAW[complete.cases(dfRAW),]
+str(dfRAW)
+
+
+```
+
+```{r Training and Testing Numeric Only Data}
+# Randomly sample elements to go into a training data set
+trainList <-createDataPartition(y=dfRAW$Stay, p=.01,list=FALSE)
+
+# Set the seed
+set.seed(777)
+
+trainSet<- dfRAW[trainList,] #included elements in the training set
+testSet <- dfRAW[-trainList,] #construct a test set from the remaining elements
+
+# Set the seed
+set.seed(777)
+
+# Create a random sample for the training and testing data
+trainSample.num <- sample_n(trainSet,size=1000,replace=FALSE)
+testSample.num <- sample_n(testSet,size=500,replace=FALSE)
+```
+
+```{r}
+# Eliminate some variables
+myVars = c("Hospital_type_code"
+           , "Hospital_region_code"
+           , "Available Extra Rooms in Hospital"
+           , "Department"
+           , "Ward_Type"
+           , "Bed Grade"
+           , "Type of Admission"
+           , "Severity of Illness"
+           , "Age"
+           , "Admission_Deposit"
+           , "Stay")
+trainSample.num <- trainSample.num[myVars]
+
+# Change variables
+trainSample.num %<>%
+  mutate(Stay = as_factor(Stay))
+
+trainSample.num %<>%
+  mutate(Hospital_type_code = as_factor(Hospital_type_code))
+trainSample.num %<>%
+  mutate(Hospital_region_code = as_factor(Hospital_region_code))
+trainSample.num %<>%
+  rename(Available_Rooms = "Available Extra Rooms in Hospital")
+trainSample.num %<>%
+  mutate(Department = as_factor(Department))
+trainSample.num %<>%
+  mutate(Ward_Type = as_factor(Ward_Type))
+trainSample.num %<>%
+  rename(Bed_Grade = "Bed Grade") %>%
+  mutate(Bed_Grade = as_factor(Bed_Grade))
+trainSample.num %<>%
+  rename(Admission_Type = "Type of Admission") %>%
+  mutate(Admission_Type = as_factor(Admission_Type))
+trainSample.num %<>%
+  rename(Severity = "Severity of Illness") %>%
+  mutate(Severity = as_factor(Severity))
+
+# Use the median value for each Age range
+trainSample.num$Age[trainSample.num$Age == "0-10"] <- 5.5
+trainSample.num$Age[trainSample.num$Age == "11-20"] <- 15.5
+trainSample.num$Age[trainSample.num$Age == "21-30"] <- 25.5
+trainSample.num$Age[trainSample.num$Age == "31-40"] <- 35.5
+trainSample.num$Age[trainSample.num$Age == "41-50"] <- 45.5
+trainSample.num$Age[trainSample.num$Age =="51-60"] <- 55.5
+trainSample.num$Age[trainSample.num$Age == "61-70"] <- 65.5
+trainSample.num$Age[trainSample.num$Age == "71-80"] <- 75.5
+trainSample.num$Age[trainSample.num$Age == "81-90"] <- 85.5
+trainSample.num$Age[trainSample.num$Age == "91-100"] <- 95.5
+
+trainSample.num %<>%
+  mutate(Age = as.numeric(Age))
+
+# Transform trainSample to dummy variables.
+dummy.vars1 <- dummyVars(~ Hospital_type_code +
+                           Hospital_region_code +
+                           Department + 
+                           Ward_Type +
+                           Severity
+                           , data = trainSample.num)
+
+
+
+dfTrain.num <- data.frame(predict(dummy.vars1, trainSample.num))
+
+dfTrain.num$Available_Rooms <- trainSample.num$Available_Rooms
+dfTrain.num$Age <- trainSample.num$Age
+dfTrain.num$Admission_Deposit <- trainSample.num$Admission_Deposit
+dfTrain.num$Stay <- trainSample.num$Stay
+
+
+str(dfTrain.num)
+```
+
+```{r}
+
+# Eliminate some variables
+myVars2 = c("Hospital_type_code"
+           , "Hospital_region_code"
+           , "Available Extra Rooms in Hospital"
+           , "Department"
+           , "Ward_Type"
+           , "Bed Grade"
+           , "Type of Admission"
+           , "Severity of Illness"
+           , "Age"
+           , "Admission_Deposit"
+           , "Stay")
+testSample.num <- testSample.num[myVars2]
+
+# Change variables
+testSample.num %<>%
+  mutate(Stay = as_factor(Stay))
+
+testSample.num %<>%
+  mutate(Hospital_type_code = as_factor(Hospital_type_code))
+testSample.num %<>%
+  mutate(Hospital_region_code = as_factor(Hospital_region_code))
+testSample.num %<>%
+  rename(Available_Rooms = "Available Extra Rooms in Hospital")
+testSample.num %<>%
+  mutate(Department = as_factor(Department))
+testSample.num %<>%
+  mutate(Ward_Type = as_factor(Ward_Type))
+testSample.num %<>%
+  rename(Bed_Grade = "Bed Grade") %>%
+  mutate(Bed_Grade = as_factor(Bed_Grade))
+testSample.num %<>%
+  rename(Admission_Type = "Type of Admission") %>%
+  mutate(Admission_Type = as_factor(Admission_Type))
+testSample.num %<>%
+  rename(Severity = "Severity of Illness") %>%
+  mutate(Severity = as_factor(Severity))
+
+# Use the median value for each Age range
+testSample.num$Age[testSample.num$Age == "0-10"] <- 5.5
+testSample.num$Age[testSample.num$Age == "11-20"] <- 15.5
+testSample.num$Age[testSample.num$Age == "21-30"] <- 25.5
+testSample.num$Age[testSample.num$Age == "31-40"] <- 35.5
+testSample.num$Age[testSample.num$Age == "41-50"] <- 45.5
+testSample.num$Age[testSample.num$Age =="51-60"] <- 55.5
+testSample.num$Age[testSample.num$Age == "61-70"] <- 65.5
+testSample.num$Age[testSample.num$Age == "71-80"] <- 75.5
+testSample.num$Age[testSample.num$Age == "81-90"] <- 85.5
+testSample.num$Age[testSample.num$Age == "91-100"] <- 95.5
+
+testSample.num %<>%
+  mutate(Age = as.numeric(Age))
+
+# Transform trainSample to dummy variables.
+dummy.vars2 <- dummyVars(~ Hospital_type_code +
+                           Hospital_region_code +
+                           Department + 
+                           Ward_Type +
+                           Severity
+                           , data = testSample.num)
+
+
+
+dfTest.num <- data.frame(predict(dummy.vars1, testSample.num))
+
+dfTest.num$Available_Rooms <- testSample.num$Available_Rooms
+dfTest.num$Age <- testSample.num$Age
+dfTest.num$Admission_Deposit <- testSample.num$Admission_Deposit
+dfTest.num$Stay <- testSample.num$Stay
+
+
+str(dfTest.num)
+```
+
+
+```{r PCA Principal components analysis}
+
+# Create a principal components model using
+pc <- dfTrain.num %>% 
+  select(-Stay) %>% # Exclude the dependent variable
+  prcomp(           
+    center = TRUE,  # Centers means to 0
+    scale  = TRUE   # Scale to unit variance (SD = 1)
+  )
+
+# Get summary stats
+pc %>% summary()
+
+# Screeplot of eigenvalues
+pc %>% plot(main = "Eigenvalues")
+
+
+# Create a test for the model
+newdata <- pc %>%  # Take PC model from training data
+  predict(         # Use predict function to apply model
+    dfTest.num %>% # Apply model to the testing data
+    select(-Stay)  # But remove the dependent variable
+  )
+
+# Modify the PCA object with projected data
+testpc <- pc         # Duplicate the PC model to `testpc`
+testpc$x <- newdata  # And change x to the predicted values
+
+# Look at training and test data projections together
+plot(               # Generic X-Y plot for training data
+  pc$x[, c(1, 2)],  # From PC, select x, then col. 1 & 2
+  col = "gray"      # Draw gray circles
+) 
+
+points(                # Add points from testing data
+  newdata[, c(1, 2)],  # Select columns 1 & 2 from `newdata`
+  col = "red"          # Draw red circles
+)
+
+```
+
+```{r Scatterplot Matrix}
+
+dfTrain.num2 <- dfTrain.num
+
+# Change variables
+dfTrain.num2 %<>%
+  mutate(Stay = as.character(Stay))
+
+# Use the median value for each Stay range
+dfTrain.num2$Stay[dfTrain.num2$Stay == "0-10"] <- 5.5
+dfTrain.num2$Stay[dfTrain.num2$Stay == "11-20"] <- 15.5
+dfTrain.num2$Stay[dfTrain.num2$Stay == "21-30"] <- 25.5
+dfTrain.num2$Stay[dfTrain.num2$Stay == "31-40"] <- 35.5
+dfTrain.num2$Stay[dfTrain.num2$Stay == "41-50"] <- 45.5
+dfTrain.num2$Stay[dfTrain.num2$Stay =="51-60"] <- 55.5
+dfTrain.num2$Stay[dfTrain.num2$Stay == "61-70"] <- 65.5
+dfTrain.num2$Stay[dfTrain.num2$Stay == "71-80"] <- 75.5
+dfTrain.num2$Stay[dfTrain.num2$Stay == "81-90"] <- 85.5
+dfTrain.num2$Stay[dfTrain.num2$Stay == "91-100"] <- 95.5
+dfTrain.num2$Stay[dfTrain.num2$Stay == "More than 100 Days"] <- 105.5
+
+# Transform into numeric variables
+dfTrain.num2 %<>%
+  mutate(Stay = as.numeric(Stay))
+
+
+# Make a scatterplot matrix of a few variables, note where
+# the points from classes overlap
+scatterplotMatrix(
+  ~Severity.Extreme + Age + Admission_Deposit | Stay,  # Mark groups on y by color and shape
+  data = dfTrain.num2,
+  regLine = FALSE,    
+  smooth  = FALSE,    
+  col = 1:11         
+)
+```
+
+```{r kNN}
+
+set.seed(777)
+
+kNN1 <- train(Stay ~ ., data = dfTrain.num, method="knn", preProcess= c("center","scale"), tuneLength=20)
+kNN1
+
+kNN1Pediction <- predict( kNN1, dfTest.num)
+tail(kNN1Pediction)
+
+confusionMatrix( kNN1Pediction, dfTest.num$Stay)
+```
+
+# **COMMENT ON KNN**
+
+#### **Naive Beyes**
+
+Naive Bayes(NB) is a simple probabilistic classifier based on the Bayes theorem. It incorporates the concept of _Conditional Probability_: the probability of event A given that event B has occurred; P(A|B). This probability is calculated by the product of the prior probability and the conditional probability divide by probability of the predictor variable. Using these calculations, it looks at incoming data (thought of as evidence). More simply,
+
+*posterior probability* = (*prior* x *likelihood*)/ *evidence* .
+
+By combining the observed information (right hand side of the equation), we can update our theoretical information on probabilities to calculate the posterior probability that a new observation has a given class.
+
+One limitation of NB is that is assumes **independence** in the predictor variables; this is of course not always the case. This simplification does allow us to compute at scale as it significantly reduces the number of probabilities that would need to be calculated.
+
+```{r accuracy} 
+# Set up function to calculate accuracy
+get_accuracy_rate <- function(AllResults, AllLabels) {
+  results <- data.frame(unlist(AllResults), unlist(AllLabels))
+  colnames(results) <- c("prediction", "actual")
+  results$prediction <- results$prediction - 1
+  results$actual <- results$actual - 1
+  results$prediction <- factor(results$prediction)
+  results$actual <- factor(results$actual)
+  cm <- confusionMatrix(results$prediction, results$actual)
+  round(cm[["overall"]][["Accuracy"]]*100,2) # and model accuracy
+}
+```
+   
+```{r cm} 
+get_cm <- function(AllResults, AllLabels) {
+  results <- data.frame(unlist(AllResults), unlist(AllLabels))
+  colnames(results) <- c("prediction", "actual")
+  results$prediction <- results$prediction - 1
+  results$actual <- results$actual - 1
+  results$prediction <- factor(results$prediction)
+  results$actual <- factor(results$actual)
+  cm <- confusionMatrix(results$prediction, results$actual)
+  cm[["table"]]#confustion matrix
+}
+```
+
+```{r}
+# Create Copy of Data for NB Analysis
+data_copy <- data
+data_copy$Stay <- factor(data_copy$Stay)
+data_copy$Age <- factor(data_copy$Age)
+
+hist(data_copy$Admission_Deposit)
+
+# Discretize Admission Deposit
+data_copy$Admission_Deposit <- cut(data_copy$Admission_Deposit, breaks = c(0,1000,2000,3000,4000,5000,6000,7000,8000,9000,10000,11000,12000,Inf), labels = c("Less Than 1k","1k-2k","2k-3k","3k-4k","4k-5k","5k-6k","6k-7k","7k-8k","8k-9k","9k-10k","10k-11k","11k-12k","Greater Than 12k"))
+
+plot(data_copy$Admission_Deposit)
+
+data_copy$Available.Extra.Rooms.in.Hospital <- cut(data_copy$Available.Extra.Rooms.in.Hospital, breaks = c(0,1,2,3,4,5,6,7,Inf), labels = c("0","1","2","3","4","5","6","Greater Than 6"))
+
+str(data_copy)
+plot(data_copy$Available.Extra.Rooms.in.Hospital)
+```
+
+
+```{r}
+# Set up 10 Folds for Cross-Validation
+N <- nrow(data_copy)
+
+kfolds <- 10
+
+set.seed(100)
+holdout <- split(sample(1:N), 1:kfolds)
+```
+
+```{r}
+#NB Model 1
+AllResults <- list()
+AllLabels <- list()
+
+par(mfrow=c(2,5))
+
+
+for (k in 1:kfolds) {
+  nb_test1 <- data_copy[holdout[[k]], ]
+  nb_train1 <- data_copy[-holdout[[k]],]
+  
+  test1_no_lab <- nb_test1[-c(11)]
+  test_lab <- nb_test1$Stay
+  
+  train_nb <- naiveBayes(Stay ~ . , data = nb_test1, na.action = na.pass)
+  nb_pred <- predict(train_nb, test1_no_lab)
+  
+  AllResults <- c(AllResults,nb_pred)
+  AllLabels <- c(AllLabels, test_lab)
+  
+  plot(nb_pred)
+}
+
+```
+
+```{r} 
+get_cm(AllResults, AllLabels)
+get_accuracy_rate(AllResults, AllLabels)
+```
+
+
+Low Accuracy
+
+```{r}
+# Create Binary Classifier to Replace 'Stay'
+data_copy2 <- data_copy
+
+data_copy2$plus61 <- 0
+data_copy2$plus61[data_copy2$Stay == "61-80"] <- 1 
+data_copy2$plus61[data_copy2$Stay == "81-100"] <- 1 
+data_copy2$plus61[data_copy2$Stay == "More than 100 Days"] <- 1 
+data_copy2$plus61 <- as.factor(data_copy2$plus61)
+
+data_copy2 <- subset(data_copy2, select = -c(Stay))
+```
+
+```{r}
+#Model 2 - Stay as a Binary Value (61+)
+par(mfrow=c(2,5))
+
+AllResults <- list()
+AllLabels <- list()
+for (k in 1:kfolds) {
+  nb_test1 <- data_copy2[holdout[[k]], ]
+  nb_train1 <- data_copy2[-holdout[[k]],]
+  
+  test1_no_lab <- nb_test1[-c(11)]
+  test_lab <- nb_test1$plus61
+  
+  train_nb <- naiveBayes(plus61 ~ . , data = nb_test1, na.action = na.pass)
+  nb_pred <- predict(train_nb, test1_no_lab)
+  
+  AllResults <- c(AllResults,nb_pred)
+  AllLabels <- c(AllLabels, test_lab)
+  
+  plot(nb_pred)
+}
+
+```
+
+```{r} 
+get_cm(AllResults, AllLabels)
+get_accuracy_rate(AllResults, AllLabels)
+```
+High Accuracy, but mostly due to high accuracy with Stay less than 61 days.
+```{r}
+df <- read.csv("train.csv")
+
+
+df$Stay[df$Stay == "0-10"] <- as.character(median(0:10))
+df$Stay[df$Stay == "11-20"] <- as.character(median(11:20))
+df$Stay[df$Stay == "21-30"] <- as.character(median(21:30))
+df$Stay[df$Stay == "31-40"] <- as.character(median(31:40))
+df$Stay[df$Stay == "41-50"] <- as.character(median(41:50))
+df$Stay[df$Stay == "51-60"] <- as.character(median(51:60))
+df$Stay[df$Stay == "61-70"] <- as.character(median(61:70))
+df$Stay[df$Stay == "71-80"] <- as.character(median(71:80))
+df$Stay[df$Stay == "81-90"] <- as.character(median(81:90))
+df$Stay[df$Stay == "91-100"] <- as.character(median(91:100))
+df$Stay[df$Stay == "More than 100 Days"] <- "105"
+
+df$Stay <- round(as.numeric(df$Stay), digits = 0)
+sum(is.na(df$Stay))
+
+par(mar=c(2,2,2,2), bty = "n")
+boxplot(df$Stay
+        , horizontal = TRUE
+        , main = "Length of Stay"
+        , bty = "n")
+```
+
+```{r}
+#Reload Data to bring back previously removed variables
+nb_data1 <- read.csv("train.csv")
+
+#Re-do class changes
+nb_data1$Hospital_type_code <- factor(nb_data1$Hospital_type_code)
+nb_data1$Hospital_region_code <- factor(nb_data1$Hospital_region_code)
+nb_data1$Department <- factor(nb_data1$Department)
+nb_data1$Ward_Type <- factor(nb_data1$Ward_Type)
+nb_data1$Type.of.Admission <- factor(nb_data1$Type.of.Admission)
+nb_data1$Severity.of.Illness <- factor(nb_data1$Severity.of.Illness)
+nb_data1$Bed.Grade <- ordered(nb_data1$Bed.Grade)
+nb_data1$Age <- factor(nb_data1$Age)
+nb_data1$Hospital_code <- factor(nb_data1$Hospital_code)
+
+
+nb_data1$Stay[nb_data1$Stay == "0-10"] <- "0-20"
+nb_data1$Stay[nb_data1$Stay == "11-20"] <- "0-20"
+nb_data1$Stay[nb_data1$Stay == "21-30"] <- "21-40"
+nb_data1$Stay[nb_data1$Stay == "31-40"] <- "21-40"
+nb_data1$Stay[nb_data1$Stay == "41-50"] <- "41-60"
+nb_data1$Stay[nb_data1$Stay == "51-60"] <- "41-60"
+nb_data1$Stay[nb_data1$Stay == "61-70"] <- "61-80"
+nb_data1$Stay[nb_data1$Stay == "71-80"] <- "61-80"
+nb_data1$Stay[nb_data1$Stay == "81-90"] <- "81-100"
+nb_data1$Stay[nb_data1$Stay == "91-100"] <- "81-100"
+nb_data1$Stay <- factor(nb_data1$Stay)
+
+# Discretize Admission Deposit
+nb_data1$Admission_Deposit <- cut(nb_data1$Admission_Deposit, breaks = c(0,1000,2000,3000,4000,5000,6000,7000,8000,9000,10000,11000,12000,Inf), labels = c("Less Than 1k","1k-2k","2k-3k","3k-4k","4k-5k","5k-6k","6k-7k","7k-8k","8k-9k","9k-10k","10k-11k","11k-12k","Greater Than 12k"))
+
+
+nb_data1$Available.Extra.Rooms.in.Hospital <- cut(nb_data1$Available.Extra.Rooms.in.Hospital, breaks = c(0,1,2,3,4,5,6,7,Inf), labels = c("0","1","2","3","4","5","6","Greater Than 6"))
+
+str(nb_data1)
+
+#Create Binary outcome for Stay
+NB.Dat1 <- nb_data1
+NB.Dat1$plus61 <- 0
+NB.Dat1$plus61[NB.Dat1$Stay == "61-80"] <- 1 
+NB.Dat1$plus61[NB.Dat1$Stay == "81-100"] <- 1 
+NB.Dat1$plus61[NB.Dat1$Stay == "More than 100 Days"] <- 1 
+NB.Dat1$plus61 <- as.factor(NB.Dat1$plus61)
+
+
+NB.Dat1 <- subset(NB.Dat1, select = -c(case_id,patientid,City_Code_Patient,City_Code_Hospital,Ward_Facility_Code, Stay))
+
+str(NB.Dat1)
+```
+
+```{r}
+# Model 3 - Stay as Binary, Include Hospital Code and Visitors with Patient
+par(mfrow=c(2,5))
+
+AllResults <- list()
+AllLabels <- list()
+for (k in 1:kfolds) {
+  nb_test1 <- NB.Dat1[holdout[[k]], ]
+  nb_train1 <- NB.Dat1[-holdout[[k]],]
+  
+  test1_no_lab <- nb_test1[-c(13)]
+  test_lab <- nb_test1$plus61
+  
+  train_nb <- naiveBayes(plus61 ~ . , data = nb_test1, na.action = na.pass)
+  nb_pred <- predict(train_nb, test1_no_lab)
+  
+  AllResults <- c(AllResults,nb_pred)
+  AllLabels <- c(AllLabels, test_lab)
+  
+  plot(nb_pred)
+}
+```
+
+```{r} 
+get_cm(AllResults, AllLabels)
+get_accuracy_rate(AllResults, AllLabels)
+```
+
+```{r}
+# Include Hospital Code for Stay and Visitors with Patient
+NB.Dat2 <- nb_data1
+
+NB.Dat2 <- subset(NB.Dat2, select = -c(case_id,patientid,City_Code_Patient,City_Code_Hospital,Ward_Facility_Code))
+```
+
+```{r}
+#Model 4 - Stay with revised Bins, include Hospital Code and Visitors with Patient
+par(mfrow=c(2,5))
+
+AllResults <- list()
+AllLabels <- list()
+for (k in 1:kfolds) {
+  nb_test1 <- NB.Dat2[holdout[[k]], ]
+  nb_train1 <- NB.Dat2[-holdout[[k]],]
+  
+  test1_no_lab <- nb_test1[-c(13)]
+  test_lab <- nb_test1$Stay
+  
+  train_nb <- naiveBayes(Stay ~ . , data = nb_test1, na.action = na.pass)
+  nb_pred <- predict(train_nb, test1_no_lab)
+  
+  AllResults <- c(AllResults,nb_pred)
+  AllLabels <- c(AllLabels, test_lab)
+  
+  plot(nb_pred)
+}
+```
+
+```{r} 
+get_cm(AllResults, AllLabels)
+get_accuracy_rate(AllResults, AllLabels)
+```
+
+
+
+
+\newpage 
+## **Results**
+Subsections 1 – n
+
+You will have and will discuss results, issues, and limitations for all the analysis. You will note which ones worked well, and why, which ones did not, and why, etc.
+
+
+
+GRADE NOTES:
+
+If any method is missing. (-10 per missing method)
+
+At least one results-supporting vis for each method. (Missing a vis – 5). These are not the same as the visualizations required in Analysis.
+
+The Results section will have a subsection for each method. Each method subsection will be different in the sense that each method is different, has different parameters, etc. For example, when you do kmeans, you will talk about the different values of k, how each performed, what each revealed, and which was selected and why. Results talk about what happened in each method, but technically.
+
+**Association Rule Mining (ARM)**
+
+**Hierarchical CLustering**
+
+**Decision Trees**
+
+**k-Nearest Neighbors (kNN)**
+
+**Naive Beyes**
+
+
+## **Conclusion**
+
+**3-4 paragraphs - NON-TECHNICAL. What was the outcome - what did you find, discover, predict, classify? WHy does it matter to humans?
+
+
+
+GRADE NOTES
+
+Less than 3 paragraphs (-10)
+
+Any mention of technical results (which belong in the Results above) -10
+
+A lack of flow or clarity about what actual findings were, why they matter, who they matter to, how they can improve things, etc…**
