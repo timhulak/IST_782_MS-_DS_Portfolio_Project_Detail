@@ -1,0 +1,137 @@
+---
+title: "Investmemnt Plan"
+output: html_notebook
+---
+
+Import Libraries
+```{r}
+library(quantmod)
+library(fPortfolio)
+library(PerformanceAnalytics)
+```
+
+```{r}
+tim_investment <- 200
+austin_investment <- 200
+SP_investment <- 0
+```
+
+
+Save Ticker Symbols
+```{r}
+tim_stocks <- c('PG','PSEC','INTC','V','CHD','QCOM','KHC','LMT','KMB','FRT','STAG','ITW')
+
+#tim_stocks <- c('AXP','APD', 'CHD', 'CSCO', 'CVX', 'ED', 'JPM', 'KO', 'LOW','MMM','O', 'PFE', 'T', 'FRT', 'INTC', 'ITW', 'KHC', 'LMT', 'PG', 'QCOM', 'SBUX', 'STAG', 'V', 'WFC')
+
+austin_stocks <- c('INTC','V','CHD','PFE','ED','QCOM','KHC','KMB','FRT','STAG','ITW','CSCO','JPM')
+
+#austin_stocks <- c('ABBV', 'ADP', 'APD', 'ATO', 'CAT', 'LEG', 'NTB', 'PEP', 'VNQ', 'VZ', 'XOM', 'INTC', 'BAC', 'LMT', 'MAIN', 'QCOM')
+
+SP_INDEX <- c("SPY","VOO","IVV")
+
+#rafa_stocks <- c("APD","DUK","GPC","IBM","IVV","JNJ","KMB","MMM","NTB","PSX","VNQ","VZ")
+```
+
+
+```{r}
+# Tim Portfolio
+for (SYMBOL in tim_stocks){
+  # Get the price data for the symbols
+  getSymbols( SYMBOL , from = Sys.Date()-5*365 , to = Sys.Date() , auto.assign = F) -> PRICE
+  # Calculate Monthly Returns 
+  monthlyReturn(PRICE[,6]) -> RETURN
+  #
+  if( SYMBOL == tim_stocks[1]) { RETURN -> tim_portfolio }
+  #
+  else { cbind(tim_portfolio,RETURN) -> tim_portfolio }
+}
+
+tim_stocks -> colnames(tim_portfolio)
+```
+
+```{r}
+# Austin Portfolio
+for (SYMBOL in austin_stocks){
+  # Get the price data for the symbols
+  getSymbols( SYMBOL , from = Sys.Date()-4.6*365 , to = Sys.Date() , auto.assign = F) -> PRICE
+  # Calculate Monthly Returns 
+  monthlyReturn(PRICE[,6]) -> RETURN
+  #
+  if( SYMBOL == austin_stocks[1]) { RETURN -> austin_portfolio }
+  #
+  else { cbind(austin_portfolio,RETURN) -> austin_portfolio }
+}
+
+austin_stocks -> colnames(austin_portfolio)
+```
+
+
+```{r}
+# S&P ETF Portfolio
+for (SYMBOL in SP_INDEX){
+  # Get the price data for the symbols
+  getSymbols( SYMBOL , from = Sys.Date()-5*365 , to = Sys.Date() , auto.assign = F) -> PRICE
+  # Calculate Monthly Returns 
+  monthlyReturn(PRICE[,6]) -> RETURN
+  #
+  if( SYMBOL == SP_INDEX[1]) { RETURN -> SP_portfolio }
+  #
+  else { cbind(SP_portfolio,RETURN) -> SP_portfolio }
+}
+
+SP_INDEX -> colnames(SP_portfolio)
+```
+
+
+12 Month Treasury Yield as of 05/10/2021 is 0.04%
+(https://www.bloomberg.com/markets/rates-bonds/government-bonds/us) 
+
+```{r}
+# Define the monthly risk free rate 
+monthly_risk_free_rate <- (0.04 / 100) / 12
+
+# Specify Portfolio Specifications 
+portfolio_specifications <- portfolioSpec()
+
+CONSTRAINTS <- c("minW[1:12]=0.05" , "maxW[1:12]=1") 
+
+# Set risk free rate
+setRiskFreeRate(portfolio_specifications) <- monthly_risk_free_rate
+```
+
+
+```{r}
+# Convert into Time Series 
+tim_portfolio <- as.timeSeries(tim_portfolio)
+tim_portfolio_optimized <- tangencyPortfolio(tim_portfolio, portfolio_specifications, constraints = CONSTRAINTS)
+TIM_WEIGHTS <- getWeights(tim_portfolio_optimized)
+round(TIM_WEIGHTS * tim_investment,2)
+```
+
+```{r}
+CONSTRAINTS <- c("minW[1:13]=0.05" , "maxW[1:13]=1") 
+
+# Convert into Time Series 
+austin_portfolio <- as.timeSeries(austin_portfolio)
+austin_portfolio_optimized <- tangencyPortfolio(austin_portfolio, portfolio_specifications, constraints = CONSTRAINTS)
+AUSTIN_WEIGHTS <- getWeights(austin_portfolio_optimized)
+round(AUSTIN_WEIGHTS * austin_investment,2)
+```
+
+```{r}
+CONSTRAINTS <- c("minW[1:3]=0.05" , "maxW[1:3]=1") 
+
+# Convert into Time Series 
+SP_portfolio <- as.timeSeries(SP_portfolio)
+SP_portfolio_optimized <- tangencyPortfolio(SP_portfolio, portfolio_specifications, constraints = CONSTRAINTS)
+SP_WEIGHTS <- getWeights(SP_portfolio_optimized)
+round(SP_WEIGHTS * SP_investment,2)
+
+```
+
+
+
+
+
+
+
