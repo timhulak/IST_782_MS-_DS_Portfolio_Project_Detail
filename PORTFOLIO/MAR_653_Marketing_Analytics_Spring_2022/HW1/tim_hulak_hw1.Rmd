@@ -1,0 +1,206 @@
+---
+title: "Sticks Kebob Shop"
+output: html_notebook
+author: Anthony Ferraiolo,	Donovan Sullivan,	Tim Hulak,	Eduardo Robles,	William (Cyrus) Garrett
+---
+
+## Introduction
+The Sticks Kebob case study presents the challenge faced by a fast casual restaurant as they expand to new locations. You have data from a survey of customers and noncustomers to identify unique characteristics of Sticks Kebob customers. The k-means clustering process will be used to identify segments among survey respondents. The new store locations would be identified by looking for zip codes where lookalikes of the customers reside or shop.
+
+
+## Load Libraries
+```{r}
+library(tidyverse)
+library(cluster)
+library(factoextra)
+```
+
+## Load Data
+```{r}
+survey_raw_data <- read.csv("hw_data.csv")
+survey_data<-na.omit(survey_raw_data)
+head(survey_data)
+```
+
+```{r}
+summary(survey_raw_data)
+```
+
+```{r}
+str(survey_raw_data)
+str(survey_data)
+```
+
+
+```{r}
+k_means_dataset <- survey_data[,1:6]
+head(k_means_dataset)
+```
+
+```{r}
+str(k_means_dataset)
+```
+
+```{r}
+colnames(k_means_dataset)
+```
+
+
+```{r}
+set.seed(49)
+options(scipen = 999)
+
+fviz_nbclust(k_means_dataset,kmeans,method="wss")
+
+wss <- function(k) {
+  km<-kmeans(k_means_dataset, k, nstart = 10 )
+  
+  km$tot.withinss/km$betweenss
+  
+}
+
+k.values <- 2:8
+
+wss_values <- map_dbl(k.values, wss)
+
+
+
+plot(k.values, wss_values,
+     type="b", pch = 19, frame = FALSE, 
+     xlab="Number of clusters K",
+     ylab="Total within-between clusters variance")
+```
+
+```{r}
+kopt_3<-kmeans(k_means_dataset,centers=3,nstart=25)
+
+fviz_cluster(kopt_3, data = k_means_dataset)
+```
+
+
+```{r}
+kopt_2<-kmeans(k_means_dataset,centers=2,nstart=25)
+
+fviz_cluster(kopt_2, data = k_means_dataset)
+```
+
+```{r}
+km3.clusters <- kopt_3$cluster
+rownames(k_means_dataset) <- paste(k_means_dataset$cust, 1:dim(k_means_dataset)[1], sep = "_")
+
+fviz_cluster(list(data=k_means_dataset, cluster = km3.clusters  ))
+```
+
+```{r}
+table(km3.clusters, k_means_dataset$cust)
+```
+
+
+```{r}
+km2.clusters <- kopt_2$cluster
+rownames(k_means_dataset) <- paste(k_means_dataset$cust, 1:dim(k_means_dataset)[1], sep = "_")
+
+fviz_cluster(list(data=k_means_dataset, cluster = km2.clusters  ))
+```
+```{r}
+table(km2.clusters, k_means_dataset$cust)
+```
+
+```{r}
+customers <- survey_data[survey_data$cust == 1,]
+
+non.customers <- survey_data[survey_data$cust == 0,]
+```
+
+```{r}
+head(customers)
+```
+```{r}
+table(customers$Gender)/sum(117,34)
+table(non.customers$Gender)/sum(112,25)
+```
+
+```{r}
+table(customers$Income)/sum(52,59,40)
+table(non.customers$Income)/sum(69,53,15)
+```
+
+```{r}
+table(customers$Age)/sum(19,70,54,8)
+table(non.customers$Age)/sum(19,41,59,18)
+```
+
+```{r}
+mean(customers$plan_carefully)
+mean(customers$control_spending)
+mean(customers$purchase_local)
+mean(customers$consider_health)
+mean(customers$num_each_lunch_athome)
+mean(customers$num_bring_lunch_work)
+mean(customers$num_buy_lunch_work)
+mean(customers$num_buy_lunch_restaurant)
+mean(customers$num_skipped_lunch)
+
+```
+
+```{r}
+mean(non.customers$plan_carefully)
+mean(non.customers$control_spending)
+mean(non.customers$purchase_local)
+mean(non.customers$consider_health)
+mean(non.customers$num_each_lunch_athome)
+mean(non.customers$num_bring_lunch_work)
+mean(non.customers$num_buy_lunch_work)
+mean(non.customers$num_buy_lunch_restaurant)
+mean(non.customers$num_skipped_lunch)
+```
+
+
+cust	1 = customer, 0 = non customer
+
+1-strongly agree, 2- agree, 3- somewhat disagree, 4 - disagree, 5- don't know
+I tend to plan things very carefully.	
+I sometimes have trouble controlling my spending.
+I think it is important to purchase products that are made locally.
+I carefully consider the8  health benefits of what I eat.
+Gender	Female	1
+Gender	Male	2
+Age	Under 25	1
+Age	26-40	2
+Age	41-65	3
+Age	66 and older	4
+Income	Under $50,000	1
+Income	$50,000 to 100,000	2
+Income	$100,000 and up	3
+
+
+
+
+### How do people choose a fast food restaurant to visit?
+
+#### a. What is important: location, price, assortment, or cuisine?
+
+
+
+
+### Who do you think are Sticks’ customers, and what are their motivations for visiting Sticks?
+
+
+
+### What does the survey data tell us about differences between customers and noncustomers?
+
+
+
+### What survey questions would you use to identify the customer segments?
+
+
+
+### How many customer segments can you estimate from the survey data? 
+
+#### a. What are the profiles of the customer segments?
+
+#### b. Which customer segments should Sticks target?
+
+
+
+### Provide a recommendation for the location of the next Sticks Kebob Shop based on the segmentation analysis and the demographic profiles of the locations in the following table. (Hint: Please consider differences in the set restaurants visited for lunch/dinner by Sticks customers and noncustomers.)

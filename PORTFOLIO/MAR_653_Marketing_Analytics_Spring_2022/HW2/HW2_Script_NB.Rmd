@@ -1,0 +1,322 @@
+---
+title: "HW2"
+output:
+  html_document:
+    df_print: paged
+---
+
+## Anthony: Put together Slide Show
+## Tim: Code + generate visuals for slide show
+## Eduardo: Question 6
+## Don: Question 7
+## Cyrus: Question 5
+
+# Retail Relay
+```{r}
+library(caTools)
+library(ggplot2)
+# library(caret)
+# library(InformationValue)
+# library(ISLR)
+options(scipen = 999)
+```
+
+
+## Use the Relay train data to develop a model to predict customer retention
+
+Base CLV: 
+```{r}
+# Create Base Customer Lifetime Value function
+base_CLV <- function(CLM, AGM, AMC, ANM){
+  customer_lifetime_value <- sum(
+  AGM,
+  AMC,
+  ANM) * CLM
+  return(customer_lifetime_value)
+}
+
+# Test some values
+cust_lifetime_months <- 20
+avg_gross_margin_per_month_per_customer <- 50
+avg_marketing_cost_per_month_per_customer <- 0
+average_net_margin_per_month_per_customer <- 50
+
+customer_lifetime_value <- sum(
+  avg_gross_margin_per_month_per_customer,
+  avg_marketing_cost_per_month_per_customer,
+  average_net_margin_per_month_per_customer
+) * cust_lifetime_months
+
+# Test Function
+base_CLV(20, 50, 0, 50)
+base_CLV(CLM = cust_lifetime_months, AGM = avg_gross_margin_per_month_per_customer, AMC= avg_marketing_cost_per_month_per_customer, ANM = average_net_margin_per_month_per_customer)
+```
+```{r}
+CLV <- function (M, R, d, r) {
+  #' M = Contribution per period from active customers 
+  #' Contribution is Sales Price - Variable Costs
+  #' R = Retention spending per period per active customer
+  #' r = Retention Rate(fraction of current customers retained each period)
+  #' d = Discount rate per period 
+  clv <- (M-R)*((1+d)/(1+d-r))
+  return(clv)
+}
+
+CLV(20, 50, 0, 50)
+```
+
+
+## Data 1
+```{r}
+test <- read.csv("data1.csv", stringsAsFactors = T)
+head(test)
+```
+
+
+
+#### Data1 Dictionary
+```{r}
+read.csv("data1_Dict.csv")
+```
+
+## Data 2
+```{r}
+train <- read.csv("data2.csv", stringsAsFactors = T)
+head(train)
+```
+
+#### Data2 Dictionary
+```{r}
+read.csv("data2_Dict.csv")
+```
+
+
+## EDA
+
+```{r}
+summary(test)
+```
+
+```{r}
+ggplot(train, aes(city))+geom_bar(fill = '#0051A0') + ggtitle("Count of Records Per City (Training Data)")
+```
+
+**Note**: The majority of customers in the training data appear to be from Richmond, VA and the most underrepresented group of customers appear to be from Baltimore, MD. 
+
+
+```{r}
+head(train)
+```
+
+
+```{r}
+ggplot(train, aes(x = esent, y = avgorder)) + geom_point(aes(size = ordfreq , color = eopenrate, alpha = 0.6)) + ggtitle("Avg Order vs. Esent by Order Frequency and Eopen Rate") + geom_abline(intercept = 20)
+```
+**Note**: There appears to be a positive correlation between the average order and the number of emails sent. However, there are outliers that show that opened emails may not have an effect on the average order. therefore the number of emails sent may not be related to the average order as strongly as the slope may indicate. 
+
+```{r}
+```
+
+
+```{r}
+```
+
+
+
+## Logistic Regression
+(Predict the variable "retained")
+
+##### 1. Use esent, eclickrate, avgorder, ordfreq, paperless, refill, doorstep as independent variables to estimate the model using train data. Report the model coefficients. Predict retention, and calculate hit rate in the test data.
+
+```{r}
+test_data <- test[c("esent", "eclickrate","avgorder","ordfreq","paperless","refill","doorstep","retained")] 
+train_data <- train[c("esent", "eclickrate","avgorder","ordfreq","paperless","refill","doorstep","retained")] 
+
+
+# Train the Model
+model <- glm(retained ~ .,family=binomial,data=train_data)
+summary(model)
+```
+
+
+```{r}
+print("Coefficients")
+coef(model) 
+```
+
+```{r}
+predict <- predict(model, new_data = test_data, type = 'response')
+confMx <- table(train_data$retained, predict > 0.5)
+
+a <- confMx[1,1]
+b <- confMx[2,2]
+tot <- sum(confMx)
+
+hit_rate <- round((a+b) / tot,2)
+print("Hit Rate")
+hit_rate
+```
+
+```{r}
+print("Matrix")
+confMx
+```
+
+
+---
+
+##### 2. Use avgorder,ordfreq,paperless,refill,doorstep as independent variables to estimate the model using train data. Report the model coefficients. Predict retention, and calculate hit rate in the test data.
+
+```{r}
+test_data <- test[c("avgorder", "ordfreq","paperless","refill","doorstep","retained")] 
+train_data <- train[c("avgorder", "ordfreq","paperless","refill","doorstep","retained")] 
+
+
+# Train the Model
+model <- glm(retained ~ .,family=binomial,data=train_data)
+summary(model)
+```
+
+
+```{r}
+print("Coefficients")
+coef(model) 
+```
+
+
+```{r}
+predict <- predict(model, new_data = test_data, type = 'response')
+confMx <- table(train_data$retained, predict > 0.5)
+
+print("Matrix")
+confMx
+```
+
+
+```{r}
+hit_rate <- 0
+print("Hit Rate")
+hit_rate
+```
+
+
+
+
+
+---
+
+
+
+
+##### 3. Use esent alone as independent variables to estimate the model using train data. Report the model coefficients. Predict retention, and calculate hit rate in the test data.
+
+```{r}
+test_data <- test[c("esent","retained")] 
+train_data <- train[c("esent","retained")] 
+
+
+# Train the Model
+model <- glm(retained ~ .,family=binomial,data=train_data)
+summary(model)
+```
+
+
+```{r}
+print("Coefficients")
+coef(model) 
+```
+
+
+```{r}
+predict <- predict(model, new_data = test_data, type = 'response')
+confMx <- table(train_data$retained, predict > 0.5)
+
+a <- confMx[1,1]
+b <- confMx[2,2]
+tot <- sum(confMx)
+
+hit_rate <- round((a+b) / tot,2)
+print("Hit Rate")
+hit_rate
+```
+
+
+```{r}
+print("Matrix")
+confMx
+```
+
+
+---
+
+
+##### 4. Create a dummy variable called weekend which is 1 if favday is Friday, Saturday or Sunday, and 0 otherwise. Use esent, eclickrate, avgorder, ordfreq, paperless, refill, doorstep, and weekend as independent variables to estimate the model using train data. Report the model coefficients, and predict retention, and calculate hit rate in the test data.
+
+```{r}
+test$weekend <- ifelse(test$favday =='Friday' | test$favday =='Saturday' | test$favday =='Sunday',1,0)
+train$weekend <- ifelse(train$favday =='Friday' | train$favday =='Saturday' | train$favday =='Sunday',1,0)
+
+
+test_data <- test[c("esent", "eclickrate", "avgorder", "ordfreq", "paperless", "refill", "doorstep", "weekend", "retained")] 
+train_data <- train[c("esent", "eclickrate", "avgorder", "ordfreq", "paperless", "refill", "doorstep", "weekend", "retained")] 
+
+
+# Train the Model
+model <- glm(retained ~ .,family=binomial,data=train_data)
+summary(model)
+```
+
+
+```{r}
+print("Coefficients")
+coef(model) 
+```
+
+
+```{r}
+predict <- predict(model, new_data = test_data, type = 'response')
+confMx <- table(train_data$retained, predict > 0.5)
+
+a <- confMx[1,1]
+b <- confMx[2,2]
+tot <- sum(confMx)
+
+hit_rate <- round((a+b) / tot,2)
+print("Hit Rate")
+hit_rate
+```
+
+
+```{r}
+print("Matrix")
+confMx
+```
+
+
+
+
+---
+
+
+### Answer the following questions based on the 4 regression outputs above.
+
+##### 5. Why is esent a strong predictor of retention? Do you see any issues with usinge sent as a predictor for retention? Recommend transformations of esent that can overcome the issues of using esent as a predictor.
+
+
+**Part of the Answer**: Using 'unsent' is misleading because the longer someone is getting emails, the more likely it is they are already retained. An example would be a call center that has a script and the representative that must say certain things to receive a good score on a call. THe longer someone is on the phone with the representative, the more time there is to read the correct phrases from the script and receive a good score. However, no customers want to be on the phone for an extended time (the longer they are on the phone, the more likely they are to become dissatisfied. Yet, the the representative will receive a good score simply because they had more time to read the script). The same sort of thing could be said for sending emails to a customer. Just because the email was sent does not mean they will be retained as a customer because they could simply delete the email without reading it or it can be sent to their junk folder and it will ultimately have no impact on retaining customers no matter how many emails are sent. 
+
+---
+
+##### 6. Does the sign of the coefficients for avgorder, ordfreq, and weekend makesense? What consumer behavior explanation can you provide for the sign of these coefficients?
+
+
+
+---
+
+##### 7. What are your recommendations to Relay Foods Management for improving their customer retention?
+
+
+
+
+
+
