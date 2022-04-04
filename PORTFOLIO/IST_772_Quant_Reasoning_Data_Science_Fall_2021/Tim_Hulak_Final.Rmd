@@ -1,0 +1,225 @@
+---
+title: "IST-772 Final"
+author: "Tim Hulak"
+date: "12/21/2021"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r}
+# Libraries
+library(ggplot2)
+library(corrplot)
+library(RColorBrewer)
+library(MCMCpack)
+library(BayesFactor)
+```
+
+
+## Load Data
+```{r}
+setwd("/Users/timhulak/Desktop/Syracuse/IST-772\ Quantitative\ Reasoning\ in\ Data\ Science/Final")
+load(file = "districts8.RData")
+load(file = "allSchoolsReportStatus.RData")
+load(file = "usVaccines.RData")
+
+head(districts)
+```
+```{r}
+head(allSchoolsReportStatus)
+```
+
+## Descriptive Reporting
+
+### Q1.	How have U.S. vaccination rates varied over time? Are vaccination rates increasing or decreasing? Which vaccination has the highest rate at the conclusion of the time series? Which vaccination has the lowest rate at the conclusion of the time series? Which vaccine has the greatest volatility? 
+
+```{r}
+US_vacc <- as.data.frame(usVaccines)
+plot(usVaccines)
+```
+
+
+**ANSWER**: In the above time series plot, we see that the vaccine data ranges from the year 1980 to 2017. The *DTP1* vaccine saw an **`r ((US_vacc$DTP1[38]-US_vacc$DTP1[1]) / US_vacc$DTP1[1]) * 100`%** increase in vaccination across the time of the data. The *HepB_BD* vaccine saw a massive **`r ((US_vacc$HepB_BD[38]-US_vacc$HepB_BD[1]) / US_vacc$HepB_BD[1]) * 100`%** increase in vaccination. The *Pol3* vaccine saw a **`r ((US_vacc$Pol3[38]-US_vacc$Pol3[1]) / US_vacc$Pol3[1]) * 100`%** decrease in vaccination. The *Hib3* vaccine saw a **`r ((US_vacc$Hib3[38]-US_vacc$Hib3[1]) / US_vacc$Hib3[1]) * 100`%** increase in vaccination. Finally, the *MCV1* vaccine saw a **`r ((US_vacc$MCV1[38]-US_vacc$MCV1[1]) / US_vacc$MCV1[1]) * 100`%** increase in vaccination.
+
+The *HepB_BD* vaccine saw the largest increase with a **`r ((US_vacc$HepB_BD[38]-US_vacc$HepB_BD[1]) / US_vacc$HepB_BD[1]) * 100`%** increase from **`r US_vacc$HepB_BD[1]`%** in 1980 to **`r US_vacc$HepB_BD[38]`%** in 2017. As seen in the graph, the *HepB_BD* vaccine remained essentially flat from 1980 to around 2005 but really exploded from 2004 to 2015. 
+
+*DTP1* ended with the highest overall rate of vaccination at **98%**, but it only had a *standard deviation* of around **5.8%** (the second lowest amount of variability/volatility). The vaccine with the greatest volatility was *HepB_BD* with a standard deviation of **22.5%**. 
+
+Overall, vaccination rates appear to be increasing. In 1980, the average vaccination rate across all of the vaccines was **`r mean(c(83,16,95,85,86))`%** (*HepB_BD* dragging down the average with its **16%**). In 2017, the average vaccination rate across all of the vaccines was **`r mean(c(98,64,94,93,92))`%** (*HepB_BD* dragging down the average with its **64%**). This results in a **`r ((mean(c(98,64,94,93,92))-mean(c(83,16,95,85,86))) / mean(c(83,16,95,85,86))) * 100`%** average increase in vaccination from 1980 to 2017. 
+
+
+---
+
+
+### Q2.	What proportion of public schools reported vaccination data? What proportion of private schools reported vaccination data? Was there any credible difference in overall reporting proportions between public and private schools? 
+
+
+```{r}
+# Create rough contingency table 
+schools_totals_table <- addmargins(table(allSchoolsReportStatus$pubpriv,allSchoolsReportStatus$reported),c(1,2))
+
+# Extract values
+Priv_No <- schools_totals_table[1]
+Priv_Yes <- schools_totals_table[4]
+Priv_Tot <- schools_totals_table[7]
+Pub_No <- schools_totals_table[2]
+Pub_Yes <- schools_totals_table[5]
+Pub_Tot <- schools_totals_table[8]
+Tot_No <- schools_totals_table[3]
+Tot_Yes <- schools_totals_table[6]
+Tot <- schools_totals_table[9]
+
+# Display
+data.frame(SchoolType = c("Private","Public","ColTotal"),
+           Reported = round(c(Priv_Yes,Pub_Yes,Tot_Yes)/7381,3),
+           NotReported = round(c(Priv_No,Pub_No,Tot_No)/7381,3),
+           RowTotal = round(c(Priv_Tot,Pub_Tot,Tot)/7381,3))
+
+```
+
+```{r}
+data.frame(SchoolType = c("Private","Public"),
+           Reported = round(c(Priv_Yes/Priv_Tot,Pub_Yes/Pub_Tot),3),
+           NotReported = round(c(Priv_No/Priv_Tot,Pub_No/Pub_Tot),3))
+```
+
+**ANSWER**: As seen in the first contingency table above, *public schools* made up around **77.7%** of the total data and **75.7%** of the total reported vaccinations. When drilled down into, as seen in the second table, **97.4%** of *public schools* reported vaccinations. As for *private schools*, they made up **22.3%** of that total data and **18.9%** of the total reported vaccinations. When drilled down into, as seen in the second table, **84.7%** of *private schools* reported vaccinations. It appears that *public schools* reported their vaccinations more often than *private schools* by around **`r 97.4-84.7`%**. This represents a credible difference in overall reporting proportions between public and private schools because there are `r Priv_No` *private schools* that have not reported their vaccinations, which is a a large number of students that we are unsure of vaccination status.  
+
+---
+
+
+### Q3.	What are 2013 vaccination rates for individual vaccines (i.e., DOT, Polio, MMR, and HepB) in California public schools?  How do these rates for individual vaccines in California districts compare with overall US vaccination rates (make an informal comparison to the final observations in the time series)? 
+
+```{r}
+# Since the columns in the CA districts have recorded the percent WITHOUT, subtract 100 to get the percent WITH 
+CA_pct_vaccinated <- data.frame(DTP = 100 - districts$WithoutDTP,
+                                Polio = 100 - districts$WithoutPolio,
+                                MMR = 100 - districts$WithoutMMR,
+                                HepB = 100 - districts$WithoutHepB)
+
+
+# Construct table
+GEO <- c(rep("California" , 4) , rep("US" , 4))
+VACCINCE <- rep(c("DTP" , "Polio" , "MMR", "HepB") , 2)
+PCT <- c(mean(CA_pct_vaccinated$DTP),mean(CA_pct_vaccinated$Polio),mean(CA_pct_vaccinated$MMR),mean(CA_pct_vaccinated$HepB), mean(US_vacc$DTP1),mean(US_vacc$Pol3),mean(US_vacc$MCV1),mean(US_vacc$HepB_BD))
+avg_rates <- data.frame(GEO,VACCINCE,PCT)
+
+ggplot(avg_rates, aes(fill=VACCINCE, y=PCT, x=GEO)) + 
+    geom_bar(position="dodge", stat="identity") + ggtitle("Average CA vs US Vaccination Rates Per Vaccine")
+```
+
+**ANSWER**: Each of the average vaccination rate percentages for California are in the mid-80's to mid-90's. This is also true for the average vaccinations rates in the US, with the exception of the **HepB** vaccine. The average vaccination rate for **HepB** in the US is only **34.21%** versus California's **92%**. Additionally, California has a slightly lower vaccination rates in **DTP** and **MMR**. Aside from the aforementioned **HepB** difference, California has a higher vaccination rate with **Polio** at **89.89%** versus the US **87.16%**.
+
+
+---
+
+
+
+### Q4.	Among districts, how are the vaccination rates for individual vaccines related? In other words, if students are missing one vaccine are they missing all of the others?
+
+```{r}
+districts_without = districts[,c('WithoutDTP','WithoutPolio','WithoutMMR','WithoutHepB')]
+cor(districts_without)
+```
+
+```{r}
+dist_cor <-cor(districts_without)
+corrplot(dist_cor, type="upper", order="hclust",
+         col=brewer.pal(n=8, name="RdYlBu"))
+```
+
+
+**ANSWER**: When the data is passed into a correlation matrix and correlation plot, we can see the likelihood of a student missing all of the vaccines if they have already missed on vaccine is rather high. While the numeric values in the correlation matrix are all **88%** or above, the blue color in the above plot shows that the correlation between **Without** one vaccine is highly correlated with being without another. There is a color scale along the right-hand side of the plot with the *darker blue* color indicates between **75%** and **100%** correlation. Each of the correlations are this *darker blue* color. 
+
+---
+
+
+
+---
+
+
+```{r}
+head(districts)
+```
+
+
+## Predictive Analyses
+
+### Q5.	What variables predict whether or not a district’s reporting was complete?
+
+#### Frequentist
+```{r}
+district_model_data <- subset(districts, select = -c(DistrictName) ) 
+
+district.model <- glm(DistrictComplete ~ . , data=district_model_data, family = binomial())
+summary(district.model)
+```
+
+#### Bayesian
+```{r}
+options(scipen = 999)
+district_bayes_model <- MCMClogit(DistrictComplete ~ ., data = district_model_data)
+summary(district_bayes_model)
+```
+
+
+**ANSWER**: When passing the district data through a *General Linear Model* (a **frequentest** model), after removing the district names since they had no bearing on  whether or not a districts reporting was complete, we see that the two heaviest influences of reporting of vaccines (the variables measuring the percentage without) are the *Enrolled* and the *TotalSchools* variables (each with a p-value below the traditional 0.05 threshold). The next lowest p-value is *PctFreeMeal* at 0.09. Interestingly, the highest p-value is *PctBeliefExempt* at 0.99. These measures can indicate the following: the higher the enrollment (given the positive intercept), the more likely a district is to be complete and the lower the number of schools (given the negative intercept), the more likely a district is to be complete. Also, religious belief exemptions do not appear to be correlated to a district being complete.
+
+The Bayesian logit model supports the Enrollment *Enrolled* and the *TotalSchools* variables being the best predictors of district completeness. The HDI of these variables do not *straddle zero* (*Enrolled* is between **0.001** and **0.004** while *TotalSchools* is between **-0.4** and **-0.13**). Each of the other variables do *straddle zero*. 
+
+---
+
+
+### Q6.	What variables predict the percentage of all enrolled students with completely up-to-date vaccines?
+
+#### Frequentist
+```{r}
+complete_students <- subset(districts, select = -c(DistrictName,WithoutDTP,WithoutPolio,WithoutMMR,WithoutHepB,DistrictComplete) ) 
+complete_students_model <- lm(PctUpToDate ~ ., data = complete_students)
+summary(complete_students_model)
+```
+
+ 
+#### Bayesian
+```{r}
+Bayes_complete_students_model <- lmBF(PctUpToDate ~ ., data = complete_students, posterior = T, iterations = 10000)
+summary(Bayes_complete_students_model)
+```
+
+**ANSWER**: In the frequentest model, we see that the best predictor for *PctUpToDate* is the *PctBeliefExempt* variable with a p-value well below the traditional 0.05 at **0.0000000000000002**. This is followed by *Enrolled* and *TotalSchools* (each with a p-value of around 0.03). The Bayesian model supports this because none of the aforementioned predictors straddle zero. 
+
+---
+
+
+
+### Q7.	What variables predict the percentage of all enrolled students with belief exceptions?
+
+#### Frequentist
+```{r}
+PctBeliefExempt_Model <- lm(PctBeliefExempt ~ ., data = complete_students)
+summary(PctBeliefExempt_Model)
+```
+
+#### Bayesian
+```{r}
+Bayes_PctBeliefExempt_Model <- lmBF(PctBeliefExempt ~ ., data = complete_students, posterior = T, iterations = 10000)
+summary(Bayes_PctBeliefExempt_Model)
+```
+
+
+**ANSWER**: In the frequentest model, it appears that *PctUpToDate*, *PctChildPoverty*, and *PctFamilyPoverty* are the best predictors of *PctBeliefExempt* (each of them with a p-value well below the traditional 0.05 threshold). The Bayesian model supports this because none of the aforementioned predictors straddle zero. 
+
+---
+
+
+### Q8.	What’s the big picture, based on all of the foregoing analyses? The staff member in the state legislator’s office is interested to know how to allocate financial assistance to school districts to improve both their vaccination rates and their reporting compliance. What have you learned from the data and analyses that might inform this question?
+
+
+**ANSWER**: Vaccination rates in the US appear to be increasing since 1980. An average increase in vaccination from 1980 to 2017 across all of the vaccines in the study was **`r ((mean(c(98,64,94,93,92))-mean(c(83,16,95,85,86))) / mean(c(83,16,95,85,86))) * 100`%**. However, it appears that school reporting can be improved. *Public schools* made up around **77.7%** of the total data and *private schools* made up **22.3%** of that total data. *97.4%** of *public schools* reported vaccinations (which is pretty good) but **84.7%** of *private schools* reported vaccinations. *Public schools* have far less leeway than *private schools* when it comes to operations. Therefore, one option for increasing reporting for *private schools* may be to introduce and pass a federal bill that requires reporting, else a fine may be placed on the school/district that does not comply. In addition, a grant can be presented to schools who comply. This is not the most favorable or simple option, but it may prove effective. An easier or quicker options would be to allocate funds to schools in order to help inform students of the benefits of particular vaccines. The *HepB_BD* vaccine has the lowest percentage of vaccination and that may be due to students simply not understanding the benefits of the vaccine. In addition, one interesting discovery in the study is the likelihood of a student missing all of the vaccines if they have already missed on vaccine is rather high (**88%** or above correlation when looking at each vaccine). Therefore, getting students to get one vaccine will likely lead to students getting the others. 
+
+The two heaviest influences of reporting of vaccines are the *Enrolled* and the *TotalSchools* variables. The higher the enrollment (given the positive intercept), the more likely a district is to be complete and the lower the number of schools (given the negative intercept), the more likely a district is to be complete. The best predictor for *PctUpToDate* is the *PctBeliefExempt*,  *Enrolled*, and *TotalSchools* (each with a p-value of around 0.03). It appears that *PctUpToDate*, *PctChildPoverty*, and *PctFamilyPoverty* are the best predictors of *PctBeliefExempt*. 
+
+In concussion, allocating financial resources toward vaccine awareness may prove to be a simple fix for lower vaccine percentages. Getting schools to report the vaccination percentages could be solved by introducing legislation that penalizes schools who do not report and rewards schools that do report. Since the best predictors of vaccine reporting are *Enrolled* and *TotalSchools*, it may also be useful to make this legislation progressive (based on enrollment and how many schools are in the district). Since the best predictor for *PctUpToDate* is the *PctBeliefExempt*, there is little the government can do without violating constitutional religious rights. However,  *PctChildPoverty* and *PctFamilyPoverty* are the best predictors of *PctBeliefExempt*. Therefore, proper financial education and nutritional education programs in schools may help to raise students out of poverty and increase vaccination rates. 
+
+
