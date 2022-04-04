@@ -1,0 +1,490 @@
+---
+title: "IST 687 Final Project"
+authors:
+- Timothy Hulak
+- Chanel Murray
+- Lenerson Pyrrhus
+- Mark Diaz
+date: "`r Sys.time()`"
+output:
+  html_notebook: default
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+# Fantastic Fourrrrrrr Bank:
+
+## Abstract:
+Fantastic Fourrrrrrr Bank management has tasked our data science team to figure out a way to determine credit card approvals, lines of credit, and APR for our credit card applicants. Further, they have tasked us with analyzing the initial applicant data as well as the application approval/denial results to ensure we are using the most efficient and equitable means to determine who is approved/denied for our credit card. 
+
+
+
+## The Data :
+
+* [Link to the dataset link](https://www.kaggle.com/rikdifos/credit-card-approval-prediction)
+* There are 438,557 observations (rows/applications)
+* There are 17 variables (columns/fields):
+  + "ID" - Application ID number 
+  + "CODE_GENDER" - Applicant gender (M/F)
+  + "FLAG_OWN_CAR" - If the applicant owns a car (Y/N)
+  + "FLAG_OWN_REALTY" - If the applicant owns realty (Y/N)
+  + "CNT_CHILDREN" - How many children the applicant has
+  + "AMT_INCOME_TOTAL" - Applicant's Annual income
+  + "NAME_INCOME_TYPE" - Type of employment the applicant has (Student, Working, Pensioner, etc.)
+  + "NAME_EDUCATION_TYPE" - Level of education
+  + "NAME_FAMILY_STATUS" - Marital status (Single, Married, Widowed, etc.)
+  + "NAME_HOUSING_TYPE" - Type of housing the applicant lives in (House, Apartment, With Parents, etc.)
+  + "Age" - Age of the applicant
+  + "DAYS_EMPLOYED" - How long the applicant has been employed 
+  + "FLAG_MOBIL" - If the applicant owns a mobile phone
+  + "FLAG_WORK_PHONE" - If the applicant owns a work/company phone
+  + "FLAG_EMAIL" - If the applicant owns a work/company phone
+  + "OCCUPATION_TYPE" - If the applicant owns an email address
+  + "CNT_FAM_MEMBERS" - How many individuals live in the household
+  
+
+
+```{r}
+# Imports
+library("writexl")
+library("ggplot2")
+library("treemap")
+library("readxl")
+library("dplyr")
+library("wordcloud2")
+library('sqldf')
+options(scipen = 999)
+```
+
+## Read in the data from our applications and preview the data
+```{r}
+# ----------------  Read in the data  -----------------
+cc_app_data <- read.csv('application_record.csv')
+
+head(cc_app_data)
+
+summary(cc_app_data)
+```
+
+## Explore the Data
+* Our key variables for considering credit approval, line of credit, and APR are the following:
+  + Annual Income
+  + Owning a car
+  + Owning Realty
+  + Number of Children
+  + Housing type
+  
+* There are `r length(cc_app_data$ID)` applicants in our dataset. 
+ 
+## Mesures of Central Tendancy and Variability
+
+5 Number summaries of numeric variables
+
+* Children:
+  + Mean: `r mean(cc_app_data$CNT_CHILDREN)`
+  + Median: `r median(cc_app_data$CNT_CHILDREN)`
+  + Standard Deviation: `r sd(cc_app_data$CNT_CHILDREN)`
+  + Minimum: `r min(cc_app_data$CNT_CHILDREN)`
+  + Maximum: `r max(cc_app_data$CNT_CHILDREN)`
+* Income:
+  + Mean: `r mean(cc_app_data$AMT_INCOME_TOTAL)`
+  + Median: `r median(cc_app_data$AMT_INCOME_TOTAL)`
+  + Standard Deviation: `r sd(cc_app_data$AMT_INCOME_TOTAL)`
+  + Minimum: `r min(cc_app_data$AMT_INCOME_TOTAL)`
+  + Maximum: `r max(cc_app_data$AMT_INCOME_TOTAL)`
+* Age:
+  + Mean: `r mean(cc_app_data$Age)`
+  + Median: `r median(cc_app_data$Age)`
+  + Standard Deviation: `r sd(cc_app_data$Age)`
+  + Minimum: `r min(cc_app_data$Age)`
+  + Maximum:  `r max(cc_app_data$Age)`
+
+# Data Visualizations
+## Applicant Gender
+```{r}
+
+# ------------ Gender (Pie Chart) ------------ 
+male <- length(which(cc_app_data$CODE_GENDER == "M"))
+female <- length(which(cc_app_data$CODE_GENDER == "F"))
+
+m_f_df <- data.frame(c("M","F"),c(male,female))
+colnames(m_f_df) <- c("Sex","Count")
+
+# Male/Female Pie chart
+ggplot(m_f_df, aes(x="", y=Count, fill=Sex)) +
+  geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0) + ggtitle("Applicant Gender Ratio")
+
+male_pct <- male/(male+female)
+female_pct <- female/(male+female)
+```
+
+`r round(female_pct*100,2)`% of our applicants are female whereas `r round(male_pct*100,2)`% are male
+
+
+```{r}
+# Get list of unique values from the column 
+housing_types <- unique(cc_app_data$NAME_HOUSING_TYPE)
+
+# Create empty vector to hold counts of each value
+housing_type_counts <- c()
+
+# Append the counts of each unique value to the housing_type_counts vector
+for (i in housing_types){
+  type_count <- length(which(cc_app_data$NAME_HOUSING_TYPE == i))
+  housing_type_counts <- c(housing_type_counts,type_count)
+}
+
+
+# ------------ Housing Type (Tree Map)  ------------ 
+housing_type_data <- data.frame(housing_types,housing_type_counts)
+
+# Housing Type Tree map
+treemap(housing_type_data,
+            index="housing_types",
+            vSize="housing_type_counts",
+            type="index",
+            title = "Housing Types"
+            )
+
+
+```
+The vast majority of our applicants (89.8%) appear to be living in a house or apartment. A distant second appears to be living with their parents (4.3%) and the remainder of housing types make up the remaining 18.5% of our data.
+
+```{r}
+cloud_count <- count(cc_app_data, OCCUPATION_TYPE)
+
+wordcloud2(data=cloud_count, size=1.6)
+```
+In the word cloud above, we see that Laborers, Sales Staff, Managers, and Core Staff make up the majority of our applicant's Occupation Type. 
+
+```{r}
+# Age box plot
+ggplot(cc_app_data, aes(x=Age)) + 
+    geom_boxplot(fill="slateblue", alpha=0.2) + ggtitle("Applicant Age Distribution")
+
+```
+The median age of our applicants is `r median(cc_app_data$Age)` years old. 25% of our applicants are between `r min(cc_app_data$Age)` and 34 years old. 50% of our applicants are between `r min(cc_app_data$Age)` and `r median(cc_app_data$Age)` years old. 75% of our applicants are between `r min(cc_app_data$Age)` and 53 years old. There appears to be no outliers in our data, with respect to age.s
+
+```{r}
+# Own Realty Column Chart
+own_realty <- length(which(cc_app_data$FLAG_OWN_REALTY == "Y"))
+do_not_own_realty <- length(which(cc_app_data$FLAG_OWN_REALTY == "N"))
+
+ggplot(cc_app_data, aes(x=as.factor(FLAG_OWN_REALTY), fill=as.factor(FLAG_OWN_REALTY) )) + 
+  geom_bar( ) +
+  scale_fill_hue(c = 40) +
+  theme(legend.position="none") +
+  ylab("Count") + 
+  xlab("Own Realty") +
+  ggtitle("Own Realty")
+```
+More than twice as many applicants own realty than those who do not; `r round((own_realty/length(cc_app_data$FLAG_OWN_REALTY))*100,2)`% own realty whereas `r round((do_not_own_realty/length(cc_app_data$FLAG_OWN_REALTY))*100,2)`% do not own realty.
+
+## Define logic for approval and line of credit
+
+* In order to get a CC from us, applicant needs 100%. 
+  + AMT_INCOME_TOTAL (50%)
+  + NAME_HOUSING_TYPE (10%)
+  + FLAG_OWN_CAR (5%)
+  + FLAG_OWN_REALTY (25%)
+  + CNT_CHILDREN (10%)
+  + 5% APR, +0.5% for every 1% under 100% (ex 99% = 5.5%)
+  + 80% or above = approval, different APR (no collateral)
+  + 50% - 79% 
+
+* Line of Credit (20% of Income) seperated into Income Tiers = 
+  + T1 = 0.01 
+  + T2 = 0.05
+  + T3 = 0.10
+  + T4 = 0.15
+
+* Approx 30% to taxes/etc, 50% to live on, 20% to our card
+
+```{r}
+
+# ----------------  Approval and Line of Credit Logic  -----------------
+
+approval_check <- function(application){
+  # Declare Base score of 0
+  base_score <- 0
+  
+  # Declare Base APR
+  base_APR <- 5
+  additional_APR <- 0.5
+  
+  # Establish Tier of Income
+  T1 <- 250000
+  T2 <- 500000
+  T3 <- 750000
+  T4 <- 1000000
+  
+  # Establish line of credit rates 
+  T1_rate <-  0.01 
+  T2_rate <-  0.05
+  T3_rate <-  0.10
+  T4_rate <-  0.15
+  
+  # Pull out variables that are to be considered
+  applicant_ID <- application[1]
+  applicant_income <- as.numeric(application[6])
+  applicant_house_type <- application[10]
+  applicant_own_car <- application[3]
+  applicant_own_realty <- application[4]
+  applicant_count_of_children <- as.numeric(application[5])
+  
+  # Determine Applicant Tier and Points for Tier
+  applicant_tier <- "No Tier"
+  base_income <- 20000
+  
+  if(applicant_income <= T1 & applicant_income >= base_income){
+    applicant_tier <- "T1"
+    base_score <- base_score + 12.5
+    
+  } else if (applicant_income > T1 & applicant_income <= T2){
+    applicant_tier <- "T2"
+    base_score <- base_score + (12.5*2)
+    
+  } else if (applicant_income > T2 & applicant_income <= T3){
+    applicant_tier <- "T3"
+    base_score <- base_score + (12.5*3)
+    
+  } else if (applicant_income > T3 & applicant_income <= T4){
+    applicant_tier <- "T4"
+    base_score <- base_score + (12.5*4)
+    
+  } else {
+    applicant_tier <- "Insuffienct Income"
+    base_score <- 0
+  }
+  
+  # Determine House Type and Own/Rent Score
+  if (applicant_house_type == "House / apartment" & applicant_own_realty == "Y"){
+    base_score <- base_score + 25 + 10
+  } else if (applicant_house_type == "House / apartment" & applicant_own_realty == "N") {
+    base_score <- base_score + 12.5 + 7
+  } else if (applicant_house_type == "With parents" & applicant_own_realty == "Y") {
+    base_score <- base_score + 25 + 7
+  } else if (applicant_house_type == "With parents" & applicant_own_realty == "N") {
+    base_score <- base_score + 12.5 + 5
+  } else if (applicant_house_type == "Municipal apartment" & applicant_own_realty == "Y") {
+    base_score <- base_score + 25 + 4
+  } else if (applicant_house_type == "Municipal apartment" & applicant_own_realty == "N") {
+    base_score <- base_score + 12.5 + 4
+  } else if (applicant_house_type == "Rented apartment" & applicant_own_realty == "Y") {
+    base_score <- base_score + 25 + 10
+  } else if (applicant_house_type == "Rented apartment" & applicant_own_realty == "N") {
+    base_score <- base_score + 12.5 + 6
+  } else if (applicant_house_type == "Office apartment" & applicant_own_realty == "Y") {
+    base_score <- base_score + 25 + 10
+  } else if (applicant_house_type == "Office apartment" & applicant_own_realty == "N") {
+    base_score <- base_score + 12.5 + 5
+  } else if (applicant_house_type == "Co-op apartment" & applicant_own_realty == "Y") {
+    base_score <- base_score + 25 + 10
+  } else if (applicant_house_type == "Co-op apartment" & applicant_own_realty == "N") {
+    base_score <- base_score + 20 + 6
+  } else {
+    base_score <- base_score + 0
+  }
+  
+  # Determine car ownership score
+  if (applicant_own_car == "Y"){
+    base_score <- base_score + 5
+  } else if (applicant_own_car == "N"){
+    base_score <- base_score + 2.5
+  } else {
+    base_score <- base_score + 0
+  }
+  
+  # Determine score for number of children
+  if (applicant_count_of_children == 0){
+    base_score <- base_score + 10
+  } else if (applicant_count_of_children == 1){
+    base_score <- base_score + 9
+  } else if (applicant_count_of_children == 2){
+    base_score <- base_score + 8
+  } else if (applicant_count_of_children == 3){
+    base_score <- base_score + 7
+  } else if (applicant_count_of_children >= 4 & applicant_count_of_children <= 6){
+    base_score <- base_score + 5
+  } else if (applicant_count_of_children >= 7 & applicant_count_of_children <= 10){
+    base_score <- base_score + 3
+  } else if (applicant_count_of_children < 10){
+    base_score <- base_score + 1
+  }
+  
+  # Determine if applicant is approved 
+  approval <- NA
+  
+  if(base_score >= 50){
+    approval <- "Approved"
+  } else {
+    approval <- "Denied"
+  }
+  
+
+  # Establish Line of Credit Amount
+  line_of_credit <- 0
+  
+  # Determine Line of Credit
+  if(applicant_tier == "T1" & approval == "Approved"){
+    line_of_credit <- applicant_income*T1_rate
+  } else if (applicant_tier == "T2" & approval == "Approved") {
+    line_of_credit <- applicant_income*T2_rate
+  } else if (applicant_tier == "T3" & approval == "Approved") {
+    line_of_credit <- applicant_income*T3_rate
+  } else if (applicant_tier == "T4" & approval == "Approved") {
+    line_of_credit <- applicant_income*T4_rate
+  } else {
+    line_of_credit <- 0
+  }
+  
+  # Set APR to 0
+  applicant_APR <- 0
+  
+  # Determine APR
+  if(base_score == 100 & approval == "Approved"){
+    applicant_APR <- base_APR
+  } else if (base_score < 100 & approval == "Approved"){
+    APR_multiplier <- 100 - base_score
+    applicant_APR <- base_APR + (APR_multiplier * additional_APR)
+  }
+  
+  approval_vector <- NULL
+  
+  if(approval == "Approved"){
+    approval_vector <- c(approval,line_of_credit,applicant_APR)
+  } else {
+    approval_vector <- c(approval,NA,NA)
+  }
+  
+  return(approval_vector)
+  
+
+}
+
+
+
+```
+
+## Process the Applications 
+```{r}
+
+# # ----------------  Application Processing  -----------------
+# 
+# # Create Empty Vectors to hold data for new columns
+# approval_col <- c()
+# credit_col <- c()
+# apr_col <- c()
+# 
+# 
+# # Loop through rows and determine approval, credit line, and APR
+# for(i in 1:nrow(cc_app_data)){
+#   application_data <- as.vector(as.character(cc_app_data[i,]))
+#   result <- approval_check(application_data)
+#   approval_col <- c(approval_col,result[1])
+#   credit_col <- c(credit_col,result[2])
+#   apr_col <- c(apr_col,result[3])
+#   
+# }
+# 
+# # Save data to new DF
+# application_results <- cc_app_data
+# 
+# # Add new columns with results
+# application_results$Approval_Status <- approval_col
+# application_results$Line_of_Credit <- as.numeric(credit_col)
+# application_results$APR <- as.numeric(apr_col)/100
+# 
+# # Preview data
+# head(application_results)
+# 
+# 
+# write_xlsx(application_results, "application_results.xlsx")
+```
+
+## Analyze results of application processing 
+
+```{r}
+# Read in the Excel
+application_results <- read_excel('application_results.xlsx')
+
+head(application_results)
+```
+```{r}
+approved_df = application_results[application_results$Approval_Status == "Approved",]
+declined_df = application_results[application_results$Approval_Status == "Denied",]
+```
+
+
+
+```{r}
+# ----------------  Results Analysis  -----------------
+
+# Mean Line of Credit
+mean_credit_line <- mean(application_results$Line_of_Credit, na.rm = T)
+mean_credit_line
+# Mean APR
+mean_apr <- mean(application_results$APR, na.rm = T)
+mean_apr
+num_approved <- length(which(application_results$Approval_Status == "Approved"))
+num_declined <- length(which(application_results$Approval_Status == "Denied"))
+
+# How many applications were approved and percentage
+pct_approved <- num_approved / (num_approved+num_declined)
+
+# How many applications declined and percentage
+pct_declined <- num_declined / (num_approved+num_declined)
+
+```
+* Analysis of our results show the following:
+  + The average line of credit was $`r mean_credit_line`
+  + The average APR was `r mean_apr`%
+  + `r num_approved` (`r pct_approved`%) applicants were approved
+  + `r num_declined` (`r pct_declined`%) applicants were declined
+
+## Results Visualizations
+```{r}
+
+results_cloud_count <- count(approved_df, OCCUPATION_TYPE)
+
+wordcloud2(data=results_cloud_count, size=1.6)
+
+```
+
+In the above word cloud, we see that the top applicants that were approved were Laborers, Sales Staff, and Core Staff. 
+
+```{r}
+
+approved_male <- length(which(approved_df$CODE_GENDER == "M"))
+approved_female <- length(which(approved_df$CODE_GENDER == "F"))
+
+
+approved_m_f_df <- data.frame(c("M","F"),c(approved_male,approved_female))
+colnames(approved_m_f_df) <- c("Sex","Count")
+
+# Male/Female Pie chart
+ggplot(approved_m_f_df, aes(x="", y=Count, fill=Sex)) +
+  geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0) + ggtitle("Gender Approval Ratio")
+
+approved_male_pct <- male/(approved_male+approved_female)
+approved_female_pct <- female/(approved_male+approved_female)
+
+```
+
+```{r}
+overall_approval_pct <- (approved_male + approved_female) / 438557
+total_approvals <- approved_male + approved_female
+```
+
+
+The ratio of Male to Female, when observing our approvals, seems largly unchanged. 
+
+```{r}
+# Age box plot
+ggplot(approved_df, aes(x=Age)) + 
+    geom_boxplot(fill="slateblue", alpha=0.2) + ggtitle("Approval Age Distribution")
+
+```
+
