@@ -4,7 +4,7 @@ MS in Applied Data Science, Syracuse University School of Information Studies, i
 ## Overview:
 
 
-## Courses List
+## Course List
 1. FIN 654 – Financial Analytics
 2. IST 652 – Scripting for Data Analysis
 3. IST 659 - Database Administration Concepts and Database Management 
