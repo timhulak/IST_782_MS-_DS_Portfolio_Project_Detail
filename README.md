@@ -1,6 +1,9 @@
 # IST 782: Applied Data Science Master’s Degree Portfolio Project
 MS in Applied Data Science, Syracuse University School of Information Studies, in collaboration with the Whitman School of Management: Project Portfolio Milestone Requirement Detailed Description and Procedures 
 
+## Overview:
+
+
 ## Courses List
 1. FIN 654 – Financial Analytics
 2. IST 652 – Scripting for Data Analysis
