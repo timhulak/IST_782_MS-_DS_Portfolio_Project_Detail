@@ -15,4 +15,7 @@ MS in Applied Data Science, Syracuse University School of Information Studies, i
 8. IST 719 - Information Visualization 
 9. IST 772 - Statistical Methods in Information Science and Technology 
 10. MBC 638 - Data Analysis and Decision Making
+
+![alt text](https://github.com/timhulak/IST_782_MS-_DS_Portfolio_Project_Detail/blob/main/PORTFOLIO/MBC_638_Data_Anls_Decisn_Making_Fall_2020/Process.png)
+
 11. SCM 651 – Business Analytics 
