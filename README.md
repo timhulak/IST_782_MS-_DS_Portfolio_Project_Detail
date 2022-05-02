@@ -43,18 +43,41 @@ MS in Applied Data Science, Syracuse University School of Information Studies, i
 
 ## 6. IST 707 - Data Analytics 
 
+![alt text](https://github.com/timhulak/IST_782_MS-_DS_Portfolio_Project_Detail/blob/main/PORTFOLIO/IST_707_Data_Analytics_Spring_2021/ARM.png)
+
+![alt text](https://github.com/timhulak/IST_782_MS-_DS_Portfolio_Project_Detail/blob/main/PORTFOLIO/IST_707_Data_Analytics_Spring_2021/D%20Tree.png)
+
+![alt text](https://github.com/timhulak/IST_782_MS-_DS_Portfolio_Project_Detail/blob/main/PORTFOLIO/IST_707_Data_Analytics_Spring_2021/KNN.png)
 
 ## 7. IST 718 - Big Data Analytics 
+
+![alt text](https://github.com/timhulak/IST_782_MS-_DS_Portfolio_Project_Detail/blob/main/PORTFOLIO/IST_718_Big_Data_Analytics_Fall_2021/1%20Model.png)
+
+![alt text](https://github.com/timhulak/IST_782_MS-_DS_Portfolio_Project_Detail/blob/main/PORTFOLIO/IST_718_Big_Data_Analytics_Fall_2021/Play%20Card.png)
+
+![alt text](https://github.com/timhulak/IST_782_MS-_DS_Portfolio_Project_Detail/blob/main/PORTFOLIO/IST_718_Big_Data_Analytics_Fall_2021/Play%20Card%20Ex.png)
 
 
 ## 8. IST 719 - Information Visualization 
 
+![alt text](https://github.com/timhulak/IST_782_MS-_DS_Portfolio_Project_Detail/blob/main/PORTFOLIO/IST_719_Information_Visualization_Summer_2021/poster.png)
 
 ## 9. IST 772 - Statistical Methods in Information Science and Technology 
 
+![alt text](https://github.com/timhulak/IST_782_MS-_DS_Portfolio_Project_Detail/blob/main/PORTFOLIO/IST_772_Quant_Reasoning_Data_Science_Fall_2021/usVac.png)
+
+![alt text](https://github.com/timhulak/IST_782_MS-_DS_Portfolio_Project_Detail/blob/main/PORTFOLIO/IST_772_Quant_Reasoning_Data_Science_Fall_2021/CAvsUS.png)
+
+![alt text](https://github.com/timhulak/IST_782_MS-_DS_Portfolio_Project_Detail/blob/main/PORTFOLIO/IST_772_Quant_Reasoning_Data_Science_Fall_2021/Bayesian.png)
 
 ## 10. MBC 638 - Data Analysis and Decision Making
 
 ![alt text](https://github.com/timhulak/IST_782_MS-_DS_Portfolio_Project_Detail/blob/main/PORTFOLIO/MBC_638_Data_Anls_Decisn_Making_Fall_2020/Process.png)
 
-## 11. SCM 651 – Business Analytics 
+## 11. MAR 653 – Marketing Analytics 
+
+![alt text](https://github.com/timhulak/IST_782_MS-_DS_Portfolio_Project_Detail/blob/main/PORTFOLIO/MAR_653_Marketing_Analytics_Spring_2022/campaigns.png)
+
+![alt text](https://github.com/timhulak/IST_782_MS-_DS_Portfolio_Project_Detail/blob/main/PORTFOLIO/MAR_653_Marketing_Analytics_Spring_2022/ROMI.png)
+
+![alt text](https://github.com/timhulak/IST_782_MS-_DS_Portfolio_Project_Detail/blob/main/PORTFOLIO/MAR_653_Marketing_Analytics_Spring_2022/ROMI2.png)
