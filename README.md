@@ -6,6 +6,13 @@ MS in Applied Data Science, Syracuse University School of Information Studies, i
 
 ## Course List
 1. FIN 654 – Financial Analytics
+
+![alt text](https://github.com/timhulak/IST_782_MS-_DS_Portfolio_Project_Detail/blob/main/PORTFOLIO/FIN_654_Financial_Analytics_Spring_2021/DJI.png)
+
+![alt text](https://github.com/timhulak/IST_782_MS-_DS_Portfolio_Project_Detail/blob/main/PORTFOLIO/FIN_654_Financial_Analytics_Spring_2021/A.png)
+
+![alt text](https://github.com/timhulak/IST_782_MS-_DS_Portfolio_Project_Detail/blob/main/PORTFOLIO/FIN_654_Financial_Analytics_Spring_2021/B.png)
+
 2. IST 652 – Scripting for Data Analysis
 3. IST 659 - Database Administration Concepts and Database Management 
 4. IST 664 - Natural Language Processing  
