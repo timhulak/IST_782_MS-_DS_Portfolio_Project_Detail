@@ -1,0 +1,75 @@
+---
+title: "Statistical Inference Part II Homework"
+author: "Tim Hulak"
+output:
+  html_document:
+    df_print: paged
+---
+
+I produced the material below with no assistance
+
+# Exercises 6 through 10 on pages 86 and 87 of *Reasoning with Data: An Introduction to Traditional and Bayesian Statistics Using R*
+
+6. The PlantGrowth data set contains three different groups, with each representing  various plant food diets (you may need to type data(PlantGrowth) to activate it). The  group labeled “ctrl” is the control group, while “trt1” and “trt2” are different types of  experimental treatment. As a reminder, this subsetting statement accesses the weight  data for the control group:  PlantGrowth$weight[PlantGrowth$group==”ctrl”]  and this subsetting statement accesses the weight data for treatment group 1:  PlantGrowth$weight[PlantGrowth$group==”trt1”]  Run a t-test to compare the means of the control group (“ctrl”) and treatment group  1 (“trt1”) in the PlantGrowth data. Report the observed value of t, the degrees of  freedom, and the p-value associated with the observed value. Assuming an alpha  threshold of .05, decide whether you should reject the null hypothesis or fail to reject  the null hypothesis. In addition, report the upper and lower bound of the confidence  interval.  
+```{r}
+data("PlantGrowth")
+head(PlantGrowth)
+```
+
+```{r}
+ctrl <- PlantGrowth[PlantGrowth$group == 'ctrl',]
+trt1 <- PlantGrowth[PlantGrowth$group == 'trt1',]
+trt2 <- PlantGrowth[PlantGrowth$group == 'trt2',]
+
+t.test(ctrl$weight,trt1$weight)
+```
+
+
+**Answer**: The *t value* for the T-test comparing the ctrl group and the trt1 group is **1.1913**. The degrees of freedom value is **16.524**. The p-value is **0.2504**. The upper bound of the confidence interval is **1.0295162** and lower bound of the confidence interval is **-0.2875162**. Given the *alpha* of **0.05**, and the p-value being **0.2504** (greater than the alpha), we fail to reject the null hypothesis. 
+
+---
+
+7. Install and library() the BEST package. Note that you may need to install a program  called JAGS onto your computer before you try to install the BEST package inside of  R. Use BESTmcmc() to compare the PlantGrowth control group (“ctrl”) to treatment  group 1 (“trt1”). Plot the result and document the boundary values that BESTmcmc()  calculated for the HDI. Write a brief definition of the meaning of the HDI and interpret  the results from this comparison.  
+```{r}
+#install.packages("BEST")
+library(BEST)
+
+BESTmcmc(ctrl$weight, trt1$weight)
+```
+
+```{r}
+plants <- BESTmcmc(ctrl$weight, trt1$weight)
+plot(plants)
+```
+
+**Answer**: The difference in the two population means is **0.386**. This is a result of subtracting the population mean of the first group from the population mean of the second group. It also means that the difference between these two averages is *not* zero. **14.4%** of the mean  differences in the distribution were negative while **85.6%** of the mean  differences in the distribution were positive, as shown by the inequality in green. The highest density interval, or HDI, is between **-0.345** and **1.15**. This means that there is a *95%* probability that the population mean difference between the ctrl group and the trt1 group falls within the range 0f **-0.345** and **1.15**. 
+
+---
+
+8. Compare and contrast the results of Exercise 6 and Exercise 7. You have three types  of evidence: the results of the null hypothesis test, the confidence interval, and the  HDI from the BESTmcmc() procedure. Each one adds something, in turn, to the  understanding of the difference between groups. Explain what information each test  provides about the comparison of the control group (“ctrl”) and the treatment group 1  (“trt1”). 
+
+**Answer**: Given the *alpha* of **0.05**, and the p-value being **0.2504** (greater than the alpha), we fail to reject the null hypothesis. The upper bound of the confidence interval is **1.0295162** and lower bound of the confidence interval is **-0.2875162**. This means that if the study were run 100 times, then 95 times out of 100 the the confidence interval would contain the population mean within it’s range. According to the HDI between **-0.345** and **1.15**, there is a *95%* probability that the population mean difference between the ctrl group and the trt1 group falls within the range of **-0.345** and **1.15**.
+
+---
+
+9. Using the same PlantGrowth data set, compare the “ctrl” group to the “trt2” group.  Use all of the methods described earlier (t-test, confidence interval, and Bayesian  method) and explain all of the results.  
+```{r}
+t.test(ctrl$weight,trt2$weight)
+```
+
+```{r}
+plants2 <- BESTmcmc(ctrl$weight, trt2$weight)
+plot(plants2)
+```
+
+**Answer**: The *t value* for the T-test comparing the ctrl group and the trt2 group is **-2.134**. The degrees of freedom value is **16.786**. The p-value is **0.0479**. The upper bound of the confidence interval is **-0.00512787** and lower bound of the confidence interval is **-0.98287213**. Given the *alpha* of **0.05**, and the p-value being **0.0479** (less than the alpha), we reject the null hypothesis. The difference in the two population means is **-0.488**. This is a result of subtracting the population mean of the first group from the population mean of the second group. It also means that the difference between these two averages is *not* zero. **95.8%** of the mean  differences in the distribution were negative while **4.2%** of the mean  differences in the distribution were positive, as shown by the inequality in green. The HDI is between **-1.06** and **0.0645**. This means that there is a *95%* probability that the population mean difference between the ctrl group and the trt2 group falls within the range of **-1.06** and **0.0645**.
+
+---
+
+10. Consider this t-test, which compares two groups of n = 100,000 observations each:  t.test(rnorm(100000,mean=17.1,sd=3.8),rnorm(100000,mean=17.2,sd=3.8))  For each of the groups, the rnorm() command was used to generate a random normal  distribution of observations similar to those for the automatic transmission group in  the mtcars database (compare the programmed standard deviation for the random  normal data to the actual mtcars data). The only difference between the two groups  is that in the first rnorm() call, the mean is set to 17.1 mpg and in the second it is set to  17.2 mpg. I think you would agree that this is a negligible difference, if we are discussing fuel economy. Run this line of code and comment on the results of the t-test. What  are the implications in terms of using the NHST on very large data sets? 
+```{r}
+t.test(rnorm(100000,mean=17.1,sd=3.8),rnorm(100000,mean=17.2,sd=3.8))
+```
+
+**Answer**: If we begin by asserting a null hypothesis that there is no mean difference between the means of two groups and choose an “alpha level” probability 0f 0.05, then we see that the p-value is **0.00000001692**. This means that the p-value is less than the alpha, therefore we reject the null hypothesis (this can be considered evidence  in favor of some unspecified alternative hypothesis). We can also see in the output that the *mean of x* is **17.09229** and *mean of y* is **17.18805**, resulting in a negligible difference of **`r 17.18805 - 17.09229`**.  
+

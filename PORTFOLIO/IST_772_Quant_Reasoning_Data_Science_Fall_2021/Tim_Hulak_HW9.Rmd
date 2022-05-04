@@ -1,0 +1,117 @@
+---
+title: "Categorical Analysis Homework"
+author: "Tim Hulak"
+output:
+  html_document:
+    df_print: paged
+---
+
+I produced the material below with no assistance.
+
+The answer to Ex. 7 was aided by the HW09 R script. 
+
+# Exercises 1, 5, 6 and 7 on page 234 of *Reasoning with Data: An Introduction to Traditional and Bayesian Statistics Using R*
+
+```{r}
+# install.packages("BaylorEdPsych_0.5.tar.gz", repos = NULL, type = "source")
+library(BaylorEdPsych)
+```
+
+
+
+1. The built-in data sets of R include one called “mtcars,” which stands for Motor Trend  cars. Motor Trend was the name of an automotive magazine and this data set contains  information on cars from the 1970s. Use “?mtcars” to display help about the data set.  The data set includes a dichotomous variable called vs, which is coded as 0 for an  engine with cylinders in a v-shape and 1 for so called “straight” engines. Use logistic  regression to predict vs, using two metric variables in the data set, gear (number of  forward gears) and hp (horsepower). Interpret the resulting null hypothesis significance  tests.  
+```{r}
+data("mtcars")
+head(mtcars)
+```
+
+```{r}
+logistic_model <- glm(vs ~ gear + hp, family = binomial(), data = mtcars)
+summary(logistic_model)
+```
+
+```{r}
+exp(coef(logistic_model))
+```
+
+
+**Answer**: The null-hypothesis is that the log-odds is 0. The p-value of the *gear* variable is **0.3907**, which is higher than the traditional **0.05** threshold.  The z-test value of -0.858 and the associated p value of **0.3907** means that it is not significant. The p-value of the *hp* variable is **0.0141**, which is lower than the traditional **0.05** thresholds. The z-test value of **-2.455** and the associated p value of **0.0141** means that it is significant. As for the intercept, the z-test value of **1.871** and the associated p value of **0.0613** means that we fail to reject the null hypothesis as the p value is higher than the traditional **0.05** threshold.
+
+---
+
+
+5. As noted in the chapter, the BaylorEdPsych add-in package contains a procedure for  generating pseudo-R-squared values from the output of the glm() procedure. Use the  results of Exercise 1 to generate, report, and interpret a Nagelkerke pseudo-R-squared  value.  
+```{r}
+PseudoR2(logistic_model)
+```
+
+
+**Answer**: The Nagelkerke R-squared value of **0.7790** can be interpreted as the amount of variance in the dependent variable which depends on the independent variables, hp and gear. 
+
+
+---
+
+
+6. Continue the analysis of the Chile data set described in this chapter. The data set is  in the “car” package, so you will have to install.packages() and library() that package  first, and then use the data(Chile) command to get access to the data set. Pay close  attention to the transformations needed to isolate cases with the Yes and No votes as  shown in this chapter. Add a new predictor, statusquo, into the model and remove the  income variable. Your new model specification should be vote ~ age + statusquo.  The statusquo variable is a rating that each respondent gave indicating whether they  preferred change or maintaining the status quo. Conduct general linear model and  Bayesian analysis on this model and report and interpret all relevant results. Compare  the AIC from this model to the AIC from the model that was developed in the chapter  (using income and age as predictors).  
+```{r}
+library(car)
+library(MCMCpack)
+data("Chile")
+head(Chile)
+
+```
+
+```{r}
+# remove income 
+data <-  subset(Chile, select = -c(income) )
+
+YES <- data[data$vote=='Y',]
+NO <- data[data$vote=='N',]
+
+dataYN=rbind(NO, YES)
+dataYN=dataYN[complete.cases(dataYN),]
+dataYN$vote=factor(dataYN$vote, levels=c("N", "Y"))
+
+dataGLM=glm(vote ~ age + statusquo, family=binomial(), data=dataYN)
+summary(dataGLM)
+```
+
+```{r}
+exp(coef(dataGLM))
+```
+
+```{r}
+dataYN$vote=as.numeric(dataYN$vote)-1 # adjust outcome variable
+dataBayes=MCMClogit(formula=vote~ age + statusquo, data=dataYN)
+summary(dataBayes)
+```
+
+
+
+
+**Answer**:  The *intercept* p-value was **0.459** and *age* p-value was **0.097**, meaning that they were not significant We would fail to reject the null hypothesis that *intercept* is 0 and *age* is 0. The *statusquo* variable has a very small p-value of **0.00000000000000022**, which is well below the traditional alpha of **0.05**. This means that we reject the null hypothesis *statusquo* predicting vote outcome is 0. 
+
+In the Bayesian results, The HDI for both *age* and the *intercept* cross over zero. This supports failing to reject the null hypothesis. The HDI for  *statusquo* does not cross over 0 (**2.948473** to **3.49959**). This supports the GLM model of rejecting the null. 
+
+
+---
+
+
+7. Bonus R code question: Develop your own custom function that will take the posterior  distribution of a coefficient from the output object from an MCMClogit() analysis and  automatically create a histogram of the posterior distributions of the coefficient in terms  of regular odds (instead of log-odds). Make sure to mark vertical lines on the histogram  indicating the boundaries of the 95% HDI. 
+```{r}
+OddsHistogram <- function(mcmc_out, seq){
+  logOdds <- as.matrix(mcmc_out[,3])
+  odds <- apply(logOdds,1,exp)
+  hist(odds, col="skyblue", 
+       main="Histogram of Statusquo Odds - Bayesian Analysis", 
+       xlab='statusquo odds')
+  abline(v=quantile(odds,c(0.025)),col='black')
+  abline(v=quantile(odds,c(0.975)),col='black')
+}
+OddsHistogram(dataBayes, 3)
+```
+
+
+**Answer**: I'll admit that I did not know exactly how to tackle this, so I plugged in the function from the homework help file. Looking at the function, I can see that it takes in 2 arguments: a Bayesian model and a sequence. From there, a matrix is constructed from the Bayesian model and the odds are calculated. Finally, a histogram plot is constructed and lines are placed on the chart to show the HDI range. 
+
+
